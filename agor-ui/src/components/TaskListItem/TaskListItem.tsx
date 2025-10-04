@@ -1,6 +1,6 @@
 import { Task } from '../../types';
-import { CheckCircleFilled, ThunderboltFilled, ClockCircleOutlined, CloseCircleFilled } from '@ant-design/icons';
-import { Space, Tag, Typography, Tooltip, List, theme } from 'antd';
+import { CheckCircleFilled, ClockCircleOutlined, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons';
+import { Space, Tag, Typography, Tooltip, List, theme, Spin } from 'antd';
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -19,7 +19,7 @@ const TaskListItem = ({ task, onClick, compact = false }: TaskListItemProps) => 
       case 'completed':
         return <CheckCircleFilled style={{ color: token.colorSuccess, fontSize: 16 }} />;
       case 'running':
-        return <ThunderboltFilled style={{ color: token.colorWarning, fontSize: 16 }} />;
+        return <Spin indicator={<LoadingOutlined spin style={{ fontSize: 16 }} />} />;
       case 'failed':
         return <CloseCircleFilled style={{ color: token.colorError, fontSize: 16 }} />;
       case 'created':
