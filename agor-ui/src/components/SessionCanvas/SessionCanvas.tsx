@@ -172,6 +172,8 @@ const SessionCanvas = ({
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
+        snapToGrid={true}
+        snapGrid={[20, 20]}
         fitView
         minZoom={0.1}
         maxZoom={1.5}

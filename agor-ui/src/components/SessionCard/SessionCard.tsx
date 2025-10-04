@@ -105,8 +105,17 @@ const SessionCard = ({
         maxWidth: SESSION_CARD_MAX_WIDTH,
       }}
     >
-      {/* Session header - always visible */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      {/* Session header - clickable area to open drawer */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          cursor: onSessionClick ? 'pointer' : 'default',
+        }}
+        onClick={onSessionClick}
+      >
         <Space size={8} align="center">
           <span style={{ fontSize: 20 }}>{getAgentIcon()}</span>
           <Text strong>{session.agent}</Text>
@@ -136,47 +145,56 @@ const SessionCard = ({
               type="text"
               size="small"
               icon={<ExpandOutlined />}
-              onClick={onSessionClick}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSessionClick();
+              }}
               title="Open in drawer"
             />
           )}
         </Space>
       </div>
 
-      {/* Description - always visible */}
-      {session.description && (
-        <Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8 }}>
-          {session.description}
-        </Text>
-      )}
-
-      {/* Git State - always visible */}
-      <div style={{ marginBottom: 8 }}>
-        <Space size={4}>
-          <Text type="secondary">
-            📍 {session.git_state.ref} @ {cleanSha.substring(0, 7)}
+      {/* Session metadata - clickable area to open drawer */}
+      <div
+        style={{ cursor: onSessionClick ? 'pointer' : 'default' }}
+        onClick={onSessionClick}
+      >
+        {/* Description */}
+        {session.description && (
+          <Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8 }}>
+            {session.description}
           </Text>
-          {isDirty && (
-            <Tag icon={<EditOutlined />} color="orange" style={{ fontSize: 11 }}>
-              uncommitted
-            </Tag>
-          )}
-        </Space>
-      </div>
+        )}
 
-      {/* Concepts - always visible */}
-      {session.concepts.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <Space size={4} wrap>
-            <Text type="secondary">📦</Text>
-            {session.concepts.map((concept) => (
-              <Tag key={concept} color="geekblue">
-                {concept}
+        {/* Git State */}
+        <div style={{ marginBottom: 8 }}>
+          <Space size={4}>
+            <Text type="secondary">
+              📍 {session.git_state.ref} @ {cleanSha.substring(0, 7)}
+            </Text>
+            {isDirty && (
+              <Tag icon={<EditOutlined />} color="orange" style={{ fontSize: 11 }}>
+                uncommitted
               </Tag>
-            ))}
+            )}
           </Space>
         </div>
-      )}
+
+        {/* Concepts */}
+        {session.concepts.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <Space size={4} wrap>
+              <Text type="secondary">📦</Text>
+              {session.concepts.map((concept) => (
+                <Tag key={concept} color="geekblue">
+                  {concept}
+                </Tag>
+              ))}
+            </Space>
+          </div>
+        )}
+      </div>
 
       {/* Tasks - collapsible */}
       <Collapse

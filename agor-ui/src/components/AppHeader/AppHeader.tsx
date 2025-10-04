@@ -2,14 +2,21 @@ import { Layout, Typography, Space, Button } from 'antd';
 import { MenuOutlined, SettingOutlined } from '@ant-design/icons';
 
 const { Header } = Layout;
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export interface AppHeaderProps {
   onMenuClick?: () => void;
   onSettingsClick?: () => void;
+  currentBoardName?: string;
+  currentBoardIcon?: string;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = ({ onMenuClick, onSettingsClick }) => {
+export const AppHeader: React.FC<AppHeaderProps> = ({
+  onMenuClick,
+  onSettingsClick,
+  currentBoardName,
+  currentBoardIcon,
+}) => {
   return (
     <Header
       style={{
@@ -20,10 +27,33 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onMenuClick, onSettingsCli
         background: '#001529',
       }}
     >
-      <Space>
+      <Space size={16}>
         <Title level={3} style={{ margin: 0, color: '#fff' }}>
           Agor
         </Title>
+        {currentBoardName && (
+          <Space
+            size={4}
+            style={{
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: 4,
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+            onClick={onMenuClick}
+          >
+            {currentBoardIcon && <span style={{ fontSize: 16 }}>{currentBoardIcon}</span>}
+            <Text style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: 14 }}>
+              {currentBoardName}
+            </Text>
+          </Space>
+        )}
       </Space>
 
       <Space>

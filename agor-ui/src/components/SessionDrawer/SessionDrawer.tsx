@@ -1,19 +1,47 @@
+import React from 'react';
 import { Session, Task } from '../../types';
-import { Drawer, Typography, Space, Badge, Tag, Divider, Timeline } from 'antd';
-import { BranchesOutlined, ForkOutlined, ClockCircleOutlined, CodeOutlined, FileTextOutlined, GithubOutlined, ToolOutlined, MessageOutlined, EditOutlined } from '@ant-design/icons';
+import { Drawer, Typography, Space, Badge, Tag, Divider, Timeline, Input, Button, Dropdown } from 'antd';
+import { BranchesOutlined, ForkOutlined, ClockCircleOutlined, CodeOutlined, FileTextOutlined, GithubOutlined, ToolOutlined, MessageOutlined, EditOutlined, SendOutlined, PlusSquareOutlined, DownOutlined } from '@ant-design/icons';
 import './SessionDrawer.css';
 
 const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
 
 interface SessionDrawerProps {
   session: Session | null;
   tasks: Task[];
   open: boolean;
   onClose: () => void;
+  onSendPrompt?: (prompt: string) => void;
+  onFork?: (prompt: string) => void;
+  onSubtask?: (prompt: string) => void;
 }
 
-const SessionDrawer = ({ session, tasks, open, onClose }: SessionDrawerProps) => {
+const SessionDrawer = ({ session, tasks, open, onClose, onSendPrompt, onFork, onSubtask }: SessionDrawerProps) => {
   if (!session) return null;
+
+  const [inputValue, setInputValue] = React.useState('');
+
+  const handleSendPrompt = () => {
+    if (inputValue.trim()) {
+      onSendPrompt?.(inputValue);
+      setInputValue('');
+    }
+  };
+
+  const handleFork = () => {
+    if (inputValue.trim()) {
+      onFork?.(inputValue);
+      setInputValue('');
+    }
+  };
+
+  const handleSubtask = () => {
+    if (inputValue.trim()) {
+      onSubtask?.(inputValue);
+      setInputValue('');
+    }
+  };
 
   const getStatusColor = () => {
     switch (session.status) {
@@ -281,6 +309,71 @@ const SessionDrawer = ({ session, tasks, open, onClose }: SessionDrawerProps) =>
             </div>
           )}
         </Space>
+      </div>
+
+      {/* Input Box Footer */}
+      <div style={{
+        position: 'sticky',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: '16px 24px',
+        background: 'var(--ant-color-bg-container)',
+        borderTop: '1px solid var(--ant-color-border)',
+        marginTop: 24,
+        marginLeft: -24,
+        marginRight: -24,
+        marginBottom: -24
+      }}>
+        <Space.Compact style={{ width: '100%' }} direction="vertical" size={8}>
+          <TextArea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Send a prompt, fork, or create a subtask..."
+            autoSize={{ minRows: 2, maxRows: 6 }}
+            onPressEnter={(e) => {
+              if (e.shiftKey) {
+                // Allow Shift+Enter for new line
+                return;
+              }
+              e.preventDefault();
+              handleSendPrompt();
+            }}
+          />
+          <Space size={8} style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Space size={8}>
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: 'fork',
+                      label: 'Fork Session',
+                      icon: <BranchesOutlined />,
+                      onClick: handleFork,
+                    },
+                    {
+                      key: 'subtask',
+                      label: 'Create Subtask',
+                      icon: <PlusSquareOutlined />,
+                      onClick: handleSubtask,
+                    },
+                  ],
+                }}
+                disabled={!inputValue.trim()}
+              >
+                <Button icon={<DownOutlined />}>More Actions</Button>
+              </Dropdown>
+            </Space>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSendPrompt}
+              disabled={!inputValue.trim()}
+            >
+              Send Prompt
+            </Button>
+          </Space>
+        </Space.Compact>
       </div>
     </Drawer>
   );

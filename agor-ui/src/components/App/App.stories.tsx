@@ -12,6 +12,7 @@ import {
   mockTask005,
   mockAgents,
 } from '../../mocks';
+import { mockBoards } from '../../mocks/boards';
 
 const meta = {
   title: 'App/App',
@@ -43,8 +44,8 @@ export const Default: Story = {
     sessions: [mockSessionA, mockSessionB, mockSessionC],
     tasks: mockTasksMap,
     availableAgents: mockAgents,
+    boards: mockBoards,
     onCreateSession: (config) => console.log('Create session:', config),
-    onMenuClick: () => console.log('Menu clicked'),
     onSettingsClick: () => console.log('Settings clicked'),
   },
 };
@@ -56,8 +57,8 @@ export const SingleSession: Story = {
       [mockSessionA.session_id]: [mockTask001, mockTask002, mockTask005],
     },
     availableAgents: mockAgents,
+    boards: mockBoards,
     onCreateSession: (config) => alert(`Creating session with agent: ${config.agent}`),
-    onMenuClick: () => alert('Menu clicked'),
     onSettingsClick: () => alert('Settings clicked'),
   },
 };
@@ -67,8 +68,8 @@ export const EmptyCanvas: Story = {
     sessions: [],
     tasks: {},
     availableAgents: mockAgents,
+    boards: mockBoards,
     onCreateSession: (config) => console.log('Create session:', config),
-    onMenuClick: () => console.log('Menu clicked'),
     onSettingsClick: () => console.log('Settings clicked'),
   },
 };
@@ -78,8 +79,8 @@ export const AllAgentsInstalled: Story = {
     sessions: [mockSessionA, mockSessionB],
     tasks: mockTasksMap,
     availableAgents: mockAgents.map((agent) => ({ ...agent, installed: true })),
+    boards: mockBoards,
     onCreateSession: (config) => console.log('Create session:', config),
-    onMenuClick: () => console.log('Menu clicked'),
     onSettingsClick: () => console.log('Settings clicked'),
   },
 };
