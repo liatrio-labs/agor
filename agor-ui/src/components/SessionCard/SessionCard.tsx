@@ -62,7 +62,11 @@ const SessionCard = ({
   }
 
   // Expanded view: show tasks
-  const visibleTasks = tasks.slice(-10);
+  // Prioritize showing running tasks, then most recent
+  const runningTasks = tasks.filter(t => t.status === 'running');
+  const otherTasks = tasks.filter(t => t.status !== 'running');
+  const recentTasks = otherTasks.slice(-10 + runningTasks.length);
+  const visibleTasks = [...runningTasks, ...recentTasks].slice(-10);
   const hiddenTaskCount = tasks.length - visibleTasks.length;
 
   const isForked = !!session.genealogy.forked_from_session_id;
