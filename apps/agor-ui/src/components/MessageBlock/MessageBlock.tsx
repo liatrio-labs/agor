@@ -9,13 +9,15 @@
  */
 
 import type { Message } from '@agor/core/types';
-import { RobotOutlined, UserOutlined } from '@ant-design/icons';
+import { CodeOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
 import { Bubble } from '@ant-design/x';
-import { Avatar, theme } from 'antd';
-import type React from 'react';
+import { Avatar, Button, Typography, theme } from 'antd';
+import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ToolUseRenderer } from '../ToolUseRenderer';
+
+const { Paragraph } = Typography;
 
 interface ToolUseBlock {
   type: 'tool_use';
@@ -45,6 +47,7 @@ interface MessageBlockProps {
 export const MessageBlock: React.FC<MessageBlockProps> = ({ message }) => {
   const { token } = theme.useToken();
   const isUser = message.role === 'user';
+  const [showRaw, setShowRaw] = React.useState(false);
 
   // Skip rendering if message has no content
   if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
@@ -117,6 +120,17 @@ export const MessageBlock: React.FC<MessageBlockProps> = ({ message }) => {
       </div>
     );
   }
+
+  // Get raw content for debugging
+  const getRawContent = (): string => {
+    if (typeof message.content === 'string') {
+      return message.content;
+    }
+    if (Array.isArray(message.content)) {
+      return JSON.stringify(message.content, null, 2);
+    }
+    return '';
+  };
 
   // Render standard message with Bubble
   return (
@@ -305,6 +319,42 @@ export const MessageBlock: React.FC<MessageBlockProps> = ({ message }) => {
                 ))}
               </div>
             )}
+
+            {/* Debug toggle for raw content */}
+            <div
+              style={{
+                marginTop: token.sizeUnit,
+                paddingTop: token.sizeUnit,
+                borderTop: `1px dashed ${token.colorBorderSecondary}`,
+              }}
+            >
+              <Button
+                size="small"
+                type="text"
+                icon={<CodeOutlined />}
+                onClick={() => setShowRaw(!showRaw)}
+                style={{ fontSize: 11 }}
+              >
+                {showRaw ? 'Hide' : 'Show'} raw
+              </Button>
+              {showRaw && (
+                <Paragraph
+                  copyable
+                  style={{
+                    marginTop: token.sizeUnit,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    background: token.colorBgLayout,
+                    padding: token.sizeUnit,
+                    borderRadius: token.borderRadius,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {getRawContent()}
+                </Paragraph>
+              )}
+            </div>
           </>
         }
         variant={isUser ? 'filled' : 'outlined'}

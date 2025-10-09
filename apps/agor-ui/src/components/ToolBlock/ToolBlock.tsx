@@ -16,13 +16,12 @@ import type { Message } from '@agor/core/types';
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
-  DownOutlined,
   FileTextOutlined,
-  RightOutlined,
-  SearchOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
-import { Collapse, Space, Tag, Typography, theme } from 'antd';
+import type { ThoughtChainProps } from '@ant-design/x';
+import { ThoughtChain } from '@ant-design/x';
+import { Space, Tag, Typography, theme } from 'antd';
 import type React from 'react';
 import { useMemo } from 'react';
 import { ToolIcon } from '../ToolIcon';
@@ -142,29 +141,49 @@ export const ToolBlock: React.FC<ToolBlockProps> = ({ messages }) => {
 
   const totalTools = toolInvocations.length;
 
-  // Collapsed summary header
-  const summaryHeader = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: token.sizeUnit * 0.75 }}>
-      <Space size={token.sizeUnit * 1.5} align="start" style={{ width: '100%', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: token.sizeUnit }}>
-          <ToolOutlined style={{ fontSize: 16 }} />
-          <Text strong>{totalTools} tools executed</Text>
-        </div>
+  // Build ThoughtChain items from tool invocations
+  const thoughtChainItems: ThoughtChainProps['items'] = toolInvocations.map(
+    ({ toolUse, toolResult }) => {
+      const isError = toolResult?.is_error;
 
-        {/* Tool type tags */}
-        <Space size={token.sizeUnit} wrap>
-          {Array.from(toolCounts.entries()).map(([name, count]) => (
-            <Tag
-              key={name}
-              icon={<ToolIcon tool={name} size={12} />}
-              style={{ fontSize: 11, margin: 0 }}
-            >
-              {name} × {count}
-            </Tag>
-          ))}
-        </Space>
+      return {
+        title: (
+          <div style={{ display: 'flex', alignItems: 'center', gap: token.sizeUnit / 2 }}>
+            <ToolIcon tool={toolUse.name} size={16} />
+            <span>{toolUse.name}</span>
+          </div>
+        ),
+        description: toolUse.input.description as string | undefined,
+        status: !toolResult ? 'pending' : isError ? 'error' : 'success',
+        icon: toolResult ? (
+          isError ? (
+            <CloseCircleOutlined style={{ color: token.colorError }} />
+          ) : (
+            <CheckCircleOutlined style={{ color: token.colorSuccess }} />
+          )
+        ) : undefined,
+        content: <ToolUseRenderer toolUse={toolUse} toolResult={toolResult} />,
+      };
+    }
+  );
 
-        {/* Result stats */}
+  // Summary description with tool counts and stats
+  const summaryDescription = (
+    <Space direction="vertical" size={token.sizeUnit / 2} style={{ marginTop: token.sizeUnit / 2 }}>
+      <Space size={token.sizeUnit} wrap>
+        {Array.from(toolCounts.entries()).map(([name, count]) => (
+          <Tag
+            key={name}
+            icon={<ToolIcon tool={name} size={12} />}
+            style={{ fontSize: 11, margin: 0 }}
+          >
+            {name} × {count}
+          </Tag>
+        ))}
+      </Space>
+
+      {/* Result stats */}
+      {(resultStats.successes > 0 || resultStats.errors > 0) && (
         <Space size={token.sizeUnit}>
           {resultStats.successes > 0 && (
             <Tag icon={<CheckCircleOutlined />} color="success" style={{ fontSize: 11, margin: 0 }}>
@@ -177,98 +196,38 @@ export const ToolBlock: React.FC<ToolBlockProps> = ({ messages }) => {
             </Tag>
           )}
         </Space>
-      </Space>
+      )}
 
       {/* Files affected summary */}
       {filesAffected.length > 0 && (
-        <div style={{ marginTop: token.sizeUnit * 1.5 }}>
-          <Space direction="vertical" size={token.sizeUnit / 2} style={{ width: '100%' }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              <FileTextOutlined /> Modified files ({filesAffected.length}):
-            </Text>
-            <div style={{ paddingLeft: 16 }}>
-              {filesAffected.slice(0, 5).map(file => (
-                <div key={file}>
-                  <Text code style={{ fontSize: 11 }}>
-                    {file}
-                  </Text>
-                </div>
-              ))}
-              {filesAffected.length > 5 && (
-                <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
-                  ... and {filesAffected.length - 5} more
-                </Text>
-              )}
-            </div>
-          </Space>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            <FileTextOutlined /> {filesAffected.length}{' '}
+            {filesAffected.length === 1 ? 'file' : 'files'} affected
+          </Text>
         </div>
       )}
-    </div>
+    </Space>
   );
 
-  return (
-    <div
-      style={{
-        marginBottom: token.sizeUnit * 1.5,
-        border: `1px solid ${token.colorBorder}`,
-        borderRadius: token.borderRadius * 1.5,
-        background: token.colorBgContainer,
-        overflow: 'hidden',
-        position: 'relative',
-        paddingLeft: token.sizeUnit / 2,
-      }}
-    >
-      {/* Left accent bar */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: token.sizeUnit / 2,
-          background: 'linear-gradient(180deg, #1890ff 0%, #096dd9 100%)',
-        }}
-      />
-      <Collapse
-        defaultActiveKey={[]}
-        expandIcon={({ isActive }) => (isActive ? <DownOutlined /> : <RightOutlined />)}
-        style={{ border: 'none' }}
-        items={[
-          {
-            key: 'tool-details',
-            label: summaryHeader,
-            style: { border: 'none' },
-            styles: {
-              header: {
-                padding: `${token.sizeUnit * 1.25}px ${token.sizeUnit * 1.5}px`,
-                background: 'rgba(24, 144, 255, 0.03)',
-                borderBottom: `1px solid ${token.colorBorder}`,
-              },
-              body: {
-                border: 'none',
-                padding: token.sizeUnit * 1.5,
-              },
-            },
-            children: (
-              <Space direction="vertical" size={token.sizeUnit} style={{ width: '100%' }}>
-                {toolInvocations.map(({ toolUse, toolResult }, index) => (
-                  <div
-                    key={toolUse.id || index}
-                    style={{
-                      padding: token.sizeUnit,
-                      background: token.colorBgLayout,
-                      borderRadius: token.borderRadius,
-                      border: `1px solid ${token.colorBorder}`,
-                    }}
-                  >
-                    <ToolUseRenderer toolUse={toolUse} toolResult={toolResult} />
-                  </div>
-                ))}
-              </Space>
-            ),
-          },
-        ]}
-      />
-    </div>
-  );
+  // Main thought chain item with summary header
+  const mainChainItem: ThoughtChainProps['items'][number] = {
+    title: (
+      <Space>
+        <ToolOutlined />
+        <Text strong>{totalTools} tools executed</Text>
+      </Space>
+    ),
+    description: summaryDescription,
+    status: resultStats.errors > 0 ? 'error' : 'success',
+    icon:
+      resultStats.errors > 0 ? (
+        <CloseCircleOutlined style={{ color: token.colorError }} />
+      ) : (
+        <CheckCircleOutlined style={{ color: token.colorSuccess }} />
+      ),
+    content: <ThoughtChain items={thoughtChainItems} style={{ marginTop: token.sizeUnit }} />,
+  };
+
+  return <ThoughtChain items={[mainChainItem]} style={{ margin: `${token.sizeUnit * 1.5}px 0` }} />;
 };

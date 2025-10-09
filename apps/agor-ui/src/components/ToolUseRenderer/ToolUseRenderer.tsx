@@ -10,18 +10,14 @@
  */
 
 import type { Message } from '@agor/core/types';
-import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  CodeOutlined,
-  DownOutlined,
-  RightOutlined,
-} from '@ant-design/icons';
-import { Collapse, Tag, Typography, theme } from 'antd';
+import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import type { ThoughtChainProps } from '@ant-design/x';
+import { ThoughtChain } from '@ant-design/x';
+import { Typography, theme } from 'antd';
 import type React from 'react';
 import { ToolIcon } from '../ToolIcon';
 
-const { Text, Paragraph } = Typography;
+const { Paragraph } = Typography;
 
 interface ToolUseBlock {
   type: 'tool_use';
@@ -55,6 +51,12 @@ export const ToolUseRenderer: React.FC<ToolUseRendererProps> = ({ toolUse, toolR
   const { token } = theme.useToken();
   const { name, input } = toolUse;
   const isError = toolResult?.is_error;
+
+  // Determine status for ThoughtChain
+  const getStatus = (): ThoughtChainProps['items'][number]['status'] => {
+    if (!toolResult) return 'pending';
+    return isError ? 'error' : 'success';
+  };
 
   // Generate smart description for tools
   const getToolDescription = (): string | null => {
@@ -135,103 +137,82 @@ export const ToolUseRenderer: React.FC<ToolUseRendererProps> = ({ toolUse, toolR
 
   const resultText = getResultText();
 
-  // Tool header component
-  const toolHeader = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: token.sizeUnit, width: '100%' }}>
-      <ToolIcon tool={name} size={16} />
-      <Text strong>{name}</Text>
-      {description && (
-        <>
-          <Text type="secondary">:</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {description}
-          </Text>
-        </>
-      )}
-      {toolResult && (
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-          {isError ? (
-            <CloseCircleOutlined style={{ color: token.colorError, fontSize: 16 }} />
-          ) : (
-            <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: 16 }} />
-          )}
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div
-      style={{
-        padding: token.sizeUnit,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: token.borderRadius,
-        background: token.colorBgContainer,
-        margin: `${token.sizeUnit * 0.75}px 0`,
-      }}
-    >
-      {/* Collapsible tool details with header as trigger */}
-      <Collapse
-        size="small"
-        ghost
-        defaultActiveKey={[]}
-        expandIcon={({ isActive }) => (isActive ? <DownOutlined /> : <RightOutlined />)}
-        items={[
-          {
-            key: 'details',
-            label: toolHeader,
-            children: (
-              <div style={{ paddingLeft: token.sizeUnit * 3 }}>
-                <pre
-                  style={{
-                    background: token.colorBgLayout,
-                    padding: `${token.sizeUnit * 0.75}px ${token.sizeUnit}px`,
-                    borderRadius: token.borderRadius,
-                    fontFamily: 'Monaco, Menlo, Ubuntu Mono, Consolas, source-code-pro, monospace',
-                    fontSize: 12,
-                    overflowX: 'auto',
-                    margin: 0,
-                  }}
-                >
-                  {JSON.stringify(input, null, 2)}
-                </pre>
-              </div>
-            ),
-          },
-        ]}
-      />
-
-      {/* Tool Result - always visible if present */}
-      {toolResult && (
-        <div
-          style={{
-            marginTop: token.sizeUnit,
-            padding: token.sizeUnit,
-            borderRadius: token.borderRadius,
-            border: `1px solid ${token.colorBorder}`,
-            background: isError ? 'rgba(255, 77, 79, 0.05)' : 'rgba(82, 196, 26, 0.05)',
-            borderColor: isError ? token.colorErrorBorder : token.colorSuccessBorder,
-          }}
-        >
-          <Text
-            type="secondary"
-            style={{ fontSize: 12, marginBottom: token.sizeUnit, display: 'block' }}
-          >
-            Output:
-          </Text>
-          <Paragraph
-            ellipsis={{ rows: 10, expandable: true, symbol: 'show more' }}
+  // Build ThoughtChain item
+  const thoughtChainItem: ThoughtChainProps['items'][number] = {
+    title: (
+      <div style={{ display: 'flex', alignItems: 'center', gap: token.sizeUnit / 2 }}>
+        <ToolIcon tool={name} size={16} />
+        <span>{name}</span>
+      </div>
+    ),
+    description: description || undefined,
+    status: getStatus(),
+    icon: toolResult ? (
+      isError ? (
+        <CloseCircleOutlined style={{ color: token.colorError }} />
+      ) : (
+        <CheckCircleOutlined style={{ color: token.colorSuccess }} />
+      )
+    ) : undefined,
+    content: (
+      <div>
+        {/* Tool input parameters (collapsible) */}
+        <details style={{ marginBottom: toolResult ? token.sizeUnit : 0 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 12, color: token.colorTextSecondary }}>
+            Input parameters
+          </summary>
+          <pre
             style={{
-              fontFamily: 'monospace',
-              fontSize: 12,
-              whiteSpace: 'pre-wrap',
-              margin: 0,
+              marginTop: token.sizeUnit,
+              background: token.colorBgLayout,
+              padding: token.sizeUnit,
+              borderRadius: token.borderRadius,
+              fontFamily: 'Monaco, Menlo, Ubuntu Mono, Consolas, source-code-pro, monospace',
+              fontSize: 11,
+              overflowX: 'auto',
             }}
           >
-            {resultText}
-          </Paragraph>
-        </div>
-      )}
-    </div>
+            {JSON.stringify(input, null, 2)}
+          </pre>
+        </details>
+
+        {/* Tool result */}
+        {toolResult && (
+          <div
+            style={{
+              padding: token.sizeUnit,
+              borderRadius: token.borderRadius,
+              background: isError ? 'rgba(255, 77, 79, 0.05)' : 'rgba(82, 196, 26, 0.05)',
+              border: `1px solid ${isError ? token.colorErrorBorder : token.colorSuccessBorder}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: token.colorTextSecondary,
+                marginBottom: token.sizeUnit / 2,
+              }}
+            >
+              Output:
+            </div>
+            <Paragraph
+              ellipsis={{ rows: 10, expandable: true, symbol: 'show more' }}
+              style={{
+                fontFamily: 'monospace',
+                fontSize: 11,
+                whiteSpace: 'pre-wrap',
+                margin: 0,
+              }}
+            >
+              {resultText}
+            </Paragraph>
+          </div>
+        )}
+      </div>
+    ),
+  };
+
+  return (
+    <ThoughtChain items={[thoughtChainItem]} style={{ margin: `${token.sizeUnit / 2}px 0` }} />
   );
 };
