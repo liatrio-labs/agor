@@ -71,28 +71,32 @@ export default class ConfigIndex extends Command {
         }
       }
 
-      // Daemon Settings
-      if (config.daemon) {
+      // Daemon Settings (merge with defaults to show effective values)
+      const { getDefaultConfig } = await import('@agor/core/config');
+      const defaults = getDefaultConfig();
+      const daemonConfig = { ...defaults.daemon, ...config.daemon };
+
+      if (daemonConfig) {
         this.log(chalk.bold('\nDaemon Settings:'));
-        if (config.daemon.port !== undefined) {
-          this.log(`  port:          ${chalk.gray(String(config.daemon.port))}`);
+        if (daemonConfig.port !== undefined) {
+          this.log(`  port:          ${chalk.gray(String(daemonConfig.port))}`);
         }
-        if (config.daemon.host) {
-          this.log(`  host:          ${chalk.gray(config.daemon.host)}`);
+        if (daemonConfig.host) {
+          this.log(`  host:          ${chalk.gray(daemonConfig.host)}`);
         }
-        if (config.daemon.jwtSecret) {
+        if (daemonConfig.jwtSecret) {
           this.log(
-            `  JWT secret:    ${chalk.gray('***' + config.daemon.jwtSecret.slice(-8))} ${chalk.dim('(saved)')}`
+            `  JWT secret:    ${chalk.gray('***' + daemonConfig.jwtSecret.slice(-8))} ${chalk.dim('(saved)')}`
           );
         }
-        if (config.daemon.allowAnonymous !== undefined) {
+        if (daemonConfig.allowAnonymous !== undefined) {
           this.log(
-            `  allow anon:    ${chalk.gray(config.daemon.allowAnonymous ? 'enabled' : 'disabled')}`
+            `  allow anon:    ${chalk.gray(daemonConfig.allowAnonymous ? 'enabled' : 'disabled')}`
           );
         }
-        if (config.daemon.requireAuth !== undefined) {
+        if (daemonConfig.requireAuth !== undefined) {
           this.log(
-            `  require auth:  ${chalk.gray(config.daemon.requireAuth ? 'enabled' : 'disabled')}`
+            `  require auth:  ${chalk.gray(daemonConfig.requireAuth ? 'enabled' : 'disabled')}`
           );
         }
       }

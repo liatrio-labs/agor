@@ -177,15 +177,28 @@ export async function initConfig(): Promise<void> {
 /**
  * Get a nested config value using dot notation
  *
+ * Merges with default config to return effective values.
+ *
  * @param key - Config key (e.g., "credentials.ANTHROPIC_API_KEY")
  * @returns Value or undefined if not set
  */
 export async function getConfigValue(key: string): Promise<string | boolean | number | undefined> {
   const config = await loadConfig();
+  const defaults = getDefaultConfig();
+
+  // Merge config with defaults (deep merge for sections)
+  const merged = {
+    ...defaults,
+    ...config,
+    defaults: { ...defaults.defaults, ...config.defaults },
+    display: { ...defaults.display, ...config.display },
+    daemon: { ...defaults.daemon, ...config.daemon },
+  };
+
   const parts = key.split('.');
 
   // biome-ignore lint/suspicious/noExplicitAny: Dynamic config access
-  let value: any = config;
+  let value: any = merged;
   for (const part of parts) {
     if (value && typeof value === 'object' && part in value) {
       value = value[part];
