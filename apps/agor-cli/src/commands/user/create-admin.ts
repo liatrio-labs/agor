@@ -3,6 +3,7 @@
  */
 
 import { createClient } from '@agor/core/api';
+import type { User } from '@agor/core/types';
 import { Command } from '@oclif/core';
 import chalk from 'chalk';
 

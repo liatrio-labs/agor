@@ -1,6 +1,6 @@
 # Architecture
 
-Related: [[core]], [[models]], [[design]], [[id-management]]
+Related: [[core]], [[models]], [[design]], [[id-management]], [[auth]]
 
 **Status:** Implemented (V1 Local Architecture)
 **Last Updated:** January 2025
@@ -51,6 +51,7 @@ Agor is a **multi-client agent orchestration platform** with a clean separation 
 │                     │                                   │
 │  ┌──────────────────▼───────────────────────────────┐ │
 │  │  Hooks (Middleware)                              │ │
+│  │  - Authentication (JWT/Local/Anonymous)         │ │
 │  │  - Validation (Zod schemas)                      │ │
 │  │  - Business rules (genealogy, git state)        │ │
 │  │  - Short ID resolution                           │ │
@@ -859,6 +860,7 @@ Feathers supports multiple ORMs. Drizzle gives:
 - [[models]] - Data model definitions
 - [[design]] - UI/UX standards
 - [[id-management]] - UUIDv7 strategy
+- [[auth]] - Authentication & authorization
 
 **External Resources:**
 

@@ -3,7 +3,7 @@
  */
 
 import { createClient } from '@agor/core/api';
-import type { Board } from '@agor/core/types';
+import type { Board, Session } from '@agor/core/types';
 import { Args, Command } from '@oclif/core';
 import chalk from 'chalk';
 
@@ -32,8 +32,9 @@ export default class BoardAddSession extends Command {
 
     try {
       // Find board by ID or slug
-      const boardsResult = await client.service('boards').find();
-      const boards = Array.isArray(boardsResult) ? boardsResult : boardsResult.data;
+      // biome-ignore lint/suspicious/noExplicitAny: FeathersJS service typing limitation
+      const boardsResult = await (client.service('boards') as any).find();
+      const boards = (Array.isArray(boardsResult) ? boardsResult : boardsResult.data) as Board[];
 
       const board = boards.find(
         (b: Board) =>
@@ -49,11 +50,14 @@ export default class BoardAddSession extends Command {
       }
 
       // Find session by short or full ID
-      const sessionsResult = await client.service('sessions').find();
-      const sessions = Array.isArray(sessionsResult) ? sessionsResult : sessionsResult.data;
+      // biome-ignore lint/suspicious/noExplicitAny: FeathersJS service typing limitation
+      const sessionsResult = await (client.service('sessions') as any).find();
+      const sessions = (
+        Array.isArray(sessionsResult) ? sessionsResult : sessionsResult.data
+      ) as Session[];
 
       const session = sessions.find(
-        (s) => s.session_id === args.sessionId || s.session_id.startsWith(args.sessionId)
+        (s: Session) => s.session_id === args.sessionId || s.session_id.startsWith(args.sessionId)
       );
 
       if (!session) {
@@ -70,9 +74,10 @@ export default class BoardAddSession extends Command {
       }
 
       // Add session to board
-      const updatedBoard = await client.service('boards').patch(board.board_id, {
+      // biome-ignore lint/suspicious/noExplicitAny: FeathersJS service typing limitation
+      const updatedBoard = (await (client.service('boards') as any).patch(board.board_id, {
         sessions: [...board.sessions, session.session_id],
-      });
+      })) as Board;
 
       this.log(
         chalk.green(
@@ -93,10 +98,10 @@ export default class BoardAddSession extends Command {
   }
 
   private async cleanup(client: import('@agor/core/api').AgorClient): Promise<void> {
-    await new Promise<void>((resolve) => {
-      client.io.on('disconnect', resolve);
+    await new Promise<void>(resolve => {
+      client.io.once('disconnect', () => resolve());
       client.io.close();
-      setTimeout(resolve, 1000);
+      setTimeout(() => resolve(), 1000);
     });
   }
 }

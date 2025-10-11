@@ -1,9 +1,9 @@
 // src/mocks/tasks.ts
-import type { Task } from '../types';
+import type { SessionID, Task, TaskID } from '../types';
 
 export const mockTask001: Task = {
-  task_id: 'task-001',
-  session_id: 'abc123',
+  task_id: 'task-001' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Design JWT authentication flow',
   status: 'completed',
   message_range: {
@@ -28,8 +28,8 @@ export const mockTask001: Task = {
 };
 
 export const mockTask002: Task = {
-  task_id: 'task-002',
-  session_id: 'abc123',
+  task_id: 'task-002' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Implement JWT auth endpoints',
   status: 'running',
   message_range: {
@@ -47,8 +47,8 @@ export const mockTask002: Task = {
 };
 
 export const mockTask003: Task = {
-  task_id: 'task-003',
-  session_id: 'def456',
+  task_id: 'task-003' as TaskID,
+  session_id: 'def456' as SessionID,
   full_prompt: 'Implement OAuth 2.0 flow',
   status: 'completed',
   message_range: {
@@ -74,8 +74,8 @@ export const mockTask003: Task = {
 };
 
 export const mockTask004: Task = {
-  task_id: 'task-004',
-  session_id: 'ghi789',
+  task_id: 'task-004' as TaskID,
+  session_id: 'ghi789' as SessionID,
   full_prompt: 'Design user database schema',
   status: 'completed',
   message_range: {
@@ -101,8 +101,8 @@ export const mockTask004: Task = {
 };
 
 export const mockTask005: Task = {
-  task_id: 'task-005',
-  session_id: 'abc123',
+  task_id: 'task-005' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Write integration tests for auth',
   status: 'created',
   message_range: {
@@ -120,8 +120,8 @@ export const mockTask005: Task = {
 
 // Task with long prompt (simulating real user input)
 export const mockTaskLongPrompt: Task = {
-  task_id: 'task-006',
-  session_id: 'abc123',
+  task_id: 'task-006' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `wow, very cool. Now what I call Task is really "user prompt", I know in claude code, at times after a user prompt the agent will label what it's doing based on that prompt, though I doubt the SDK would expose that for us to use, so most likely we'd need to either have a way to summarize the user prompt (through an LLM), or simply show a part of the use prompt. Or maybe there are 2-3 views: collapsed, with just the session title, expanded with a wide view of only the user prompts, this may take say 1/6 of the screen, idk, and the full session, the more traditional session with full details, this one would be in a drawer on the right that has the full session in x.antd. Realizing this is going to be pretty on design. Look at this prompt for instance, it's like 10 lines long.`,
   status: 'running',
   message_range: {
@@ -140,8 +140,8 @@ export const mockTaskLongPrompt: Task = {
 
 // Additional realistic tasks for Session A (to test scrolling)
 export const mockTask007: Task = {
-  task_id: 'task-007',
-  session_id: 'abc123',
+  task_id: 'task-007' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `Hey, can you help me implement a password reset flow? I'm thinking we need:
 1. A "forgot password" endpoint that sends an email with a reset token
 2. The token should be time-limited (maybe 1 hour?)
@@ -173,8 +173,8 @@ Also, I'm not sure if we should store the reset tokens in the database or use JW
 };
 
 export const mockTask008: Task = {
-  task_id: 'task-008',
-  session_id: 'abc123',
+  task_id: 'task-008' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `We're getting CORS errors in production but everything works fine in dev. The frontend is on app.example.com and the API is on api.example.com. I've already added the CORS middleware but still seeing "No 'Access-Control-Allow-Origin' header" errors. Can you help debug this?`,
   status: 'completed',
   message_range: {
@@ -195,8 +195,8 @@ export const mockTask008: Task = {
 };
 
 export const mockTask009: Task = {
-  task_id: 'task-009',
-  session_id: 'abc123',
+  task_id: 'task-009' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Add refresh token rotation',
   status: 'completed',
   message_range: {
@@ -216,8 +216,8 @@ export const mockTask009: Task = {
 };
 
 export const mockTask010: Task = {
-  task_id: 'task-010',
-  session_id: 'abc123',
+  task_id: 'task-010' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `I need to add rate limiting to prevent brute force attacks on the login endpoint. Let's use something like 5 attempts per minute per IP address. If someone exceeds that, lock them out for 15 minutes. Should we use Redis for this or can we do it in-memory for now?`,
   status: 'completed',
   message_range: {
@@ -237,8 +237,8 @@ export const mockTask010: Task = {
 };
 
 export const mockTask011: Task = {
-  task_id: 'task-011',
-  session_id: 'abc123',
+  task_id: 'task-011' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Add session management endpoints',
   status: 'completed',
   message_range: {
@@ -258,8 +258,8 @@ export const mockTask011: Task = {
 };
 
 export const mockTask012: Task = {
-  task_id: 'task-012',
-  session_id: 'abc123',
+  task_id: 'task-012' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `We need to integrate an email service for sending password reset emails, welcome emails, etc. I'm thinking of using SendGrid or AWS SES. Which one would you recommend? Also, can you help set up email templates using something like Handlebars or React Email?`,
   status: 'completed',
   message_range: {
@@ -279,8 +279,8 @@ export const mockTask012: Task = {
 };
 
 export const mockTask013: Task = {
-  task_id: 'task-013',
-  session_id: 'abc123',
+  task_id: 'task-013' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Add two-factor authentication',
   status: 'completed',
   message_range: {
@@ -300,8 +300,8 @@ export const mockTask013: Task = {
 };
 
 export const mockTask014: Task = {
-  task_id: 'task-014',
-  session_id: 'abc123',
+  task_id: 'task-014' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `Time to add proper authorization. I want to have different user roles like "admin", "user", "moderator" etc. Each role should have different permissions. Can we create a flexible system where we can define permissions like "users.read", "users.write", "posts.delete" and then assign those to roles? Also need middleware to check permissions on routes.`,
   status: 'completed',
   message_range: {
@@ -321,8 +321,8 @@ export const mockTask014: Task = {
 };
 
 export const mockTask015: Task = {
-  task_id: 'task-015',
-  session_id: 'abc123',
+  task_id: 'task-015' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Write comprehensive API documentation',
   status: 'completed',
   message_range: {
@@ -342,8 +342,8 @@ export const mockTask015: Task = {
 };
 
 export const mockTask016: Task = {
-  task_id: 'task-016',
-  session_id: 'abc123',
+  task_id: 'task-016' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `We need better observability. Can you help set up structured logging (maybe using Winston or Pino?) and add some basic monitoring? I want to track things like: response times, error rates, active sessions, failed login attempts. Should we use something like Datadog or can we start with a simpler solution?`,
   status: 'completed',
   message_range: {
@@ -363,8 +363,8 @@ export const mockTask016: Task = {
 };
 
 export const mockTask017: Task = {
-  task_id: 'task-017',
-  session_id: 'abc123',
+  task_id: 'task-017' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: 'Add API versioning',
   status: 'created',
   message_range: {
@@ -381,8 +381,8 @@ export const mockTask017: Task = {
 };
 
 export const mockTask018: Task = {
-  task_id: 'task-018',
-  session_id: 'abc123',
+  task_id: 'task-018' as TaskID,
+  session_id: 'abc123' as SessionID,
   full_prompt: `The app is getting slow with more users. Looking at the logs, I see some N+1 query issues and missing indexes. Can you help me identify and fix the performance bottlenecks? Maybe add some eager loading, create indexes on frequently queried columns, and optimize the most common queries?`,
   status: 'created',
   message_range: {
@@ -400,8 +400,8 @@ export const mockTask018: Task = {
 
 // More tasks for Session B (OAuth exploration)
 export const mockTask019: Task = {
-  task_id: 'task-019',
-  session_id: 'def456',
+  task_id: 'task-019' as TaskID,
+  session_id: 'def456' as SessionID,
   full_prompt: `Let's explore OAuth 2.0 as an alternative to our JWT implementation. I want to support "Sign in with Google", "Sign in with GitHub", and maybe Microsoft. Can you help me understand the flow and what libraries we should use? Also, how do we handle the case where a user signs up with email but later wants to link their Google account?`,
   status: 'completed',
   message_range: {
@@ -421,8 +421,8 @@ export const mockTask019: Task = {
 };
 
 export const mockTask020: Task = {
-  task_id: 'task-020',
-  session_id: 'def456',
+  task_id: 'task-020' as TaskID,
+  session_id: 'def456' as SessionID,
   full_prompt: 'Implement OAuth callback handlers',
   status: 'running',
   message_range: {
@@ -440,8 +440,8 @@ export const mockTask020: Task = {
 
 // More tasks for Session C (database design)
 export const mockTask021: Task = {
-  task_id: 'task-021',
-  session_id: 'ghi789',
+  task_id: 'task-021' as TaskID,
+  session_id: 'ghi789' as SessionID,
   full_prompt: 'Add migration for user roles table',
   status: 'completed',
   message_range: {
@@ -461,8 +461,8 @@ export const mockTask021: Task = {
 };
 
 export const mockTask022: Task = {
-  task_id: 'task-022',
-  session_id: 'ghi789',
+  task_id: 'task-022' as TaskID,
+  session_id: 'ghi789' as SessionID,
   full_prompt: `We need to configure database connection pooling for better performance. What's the optimal pool size for a typical web app? Should we use different pool sizes for read vs write operations? Also need to handle connection timeouts and retries gracefully.`,
   status: 'completed',
   message_range: {
@@ -483,8 +483,8 @@ export const mockTask022: Task = {
 
 // Tasks with AI-generated summaries (future ideal state)
 export const mockTaskWithSummary001: Task = {
-  task_id: 'summary-001',
-  session_id: 'summary-session',
+  task_id: 'summary-001' as TaskID,
+  session_id: 'summary-session' as SessionID,
   full_prompt:
     'Can you help me design a JWT authentication flow? I want to understand the best practices for token expiration, refresh tokens, and how to handle the auth state in the frontend.',
   description: 'Design JWT authentication flow',
@@ -506,8 +506,8 @@ export const mockTaskWithSummary001: Task = {
 };
 
 export const mockTaskWithSummary002: Task = {
-  task_id: 'summary-002',
-  session_id: 'summary-session',
+  task_id: 'summary-002' as TaskID,
+  session_id: 'summary-session' as SessionID,
   full_prompt: `Hey, can you help me implement a password reset flow? I'm thinking we need:
 1. A "forgot password" endpoint that sends an email with a reset token
 2. The token should be time-limited (maybe 1 hour?)

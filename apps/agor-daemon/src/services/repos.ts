@@ -136,7 +136,13 @@ export class ReposService extends DrizzleService<Repo, Partial<Repo>, RepoParams
    */
   async createWorktree(
     id: string,
-    data: { name: string; ref: string; createBranch?: boolean },
+    data: {
+      name: string;
+      ref: string;
+      createBranch?: boolean;
+      pullLatest?: boolean;
+      sourceBranch?: string;
+    },
     params?: RepoParams
   ): Promise<Repo> {
     const repo = await this.get(id, params);
@@ -144,8 +150,15 @@ export class ReposService extends DrizzleService<Repo, Partial<Repo>, RepoParams
     // Generate worktree path
     const worktreePath = getWorktreePath(repo.slug, data.name);
 
-    // Create git worktree
-    await gitCreateWorktree(repo.local_path, worktreePath, data.ref, data.createBranch);
+    // Create git worktree with optional pull-latest and source branch
+    await gitCreateWorktree(
+      repo.local_path,
+      worktreePath,
+      data.ref,
+      data.createBranch,
+      data.pullLatest,
+      data.sourceBranch
+    );
 
     // Get current worktrees and add new one with proper new_branch flag
     const worktrees = repo.worktrees || [];

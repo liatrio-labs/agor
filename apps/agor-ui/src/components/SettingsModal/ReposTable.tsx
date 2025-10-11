@@ -10,13 +10,47 @@ import {
   List,
   Modal,
   Popconfirm,
+  Radio,
+  Select,
   Space,
   Tag,
   Typography,
 } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const { Text, Title } = Typography;
+
+// Utility: Extract slug from Git URL (org/repo format)
+function extractSlugFromUrl(url: string): string {
+  try {
+    // Remove .git suffix if present
+    const cleanUrl = url.endsWith('.git') ? url.slice(0, -4) : url;
+
+    // Handle SSH format: git@github.com:org/repo
+    if (cleanUrl.includes('@')) {
+      const match = cleanUrl.match(/:([^/]+\/[^/]+)$/);
+      if (match) {
+        return match[1];
+      }
+    }
+
+    // Handle HTTPS format: https://github.com/org/repo
+    const match = cleanUrl.match(/[:/]([^/]+\/[^/]+)$/);
+    if (match) {
+      return match[1];
+    }
+
+    // Fallback: use last two path segments
+    const segments = cleanUrl.split('/').filter(Boolean);
+    if (segments.length >= 2) {
+      return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
+    }
+
+    return '';
+  } catch {
+    return '';
+  }
+}
 
 interface ReposTableProps {
   repos: Repo[];
@@ -25,7 +59,13 @@ interface ReposTableProps {
   onDeleteWorktree?: (repoId: string, worktreeName: string) => void;
   onCreateWorktree?: (
     repoId: string,
-    data: { name: string; ref: string; createBranch: boolean }
+    data: {
+      name: string;
+      ref: string;
+      createBranch: boolean;
+      pullLatest?: boolean;
+      sourceBranch?: string;
+    }
   ) => void;
 }
 
@@ -42,6 +82,22 @@ export const ReposTable: React.FC<ReposTableProps> = ({
   const [repoForm] = Form.useForm();
   const [form] = Form.useForm();
 
+  // Worktree form state
+  const [useSameName, setUseSameName] = useState(true);
+  const [strategy, setStrategy] = useState<'create' | 'checkout' | 'commit'>('create');
+  const [pullLatest, setPullLatest] = useState(true);
+
+  // Auto-extract slug when URL changes in repo form
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    if (url) {
+      const slug = extractSlugFromUrl(url);
+      if (slug) {
+        repoForm.setFieldsValue({ slug });
+      }
+    }
+  };
+
   const handleDeleteRepo = (repoId: string) => {
     onDelete?.(repoId);
   };
@@ -52,13 +108,33 @@ export const ReposTable: React.FC<ReposTableProps> = ({
 
   const handleOpenCreateWorktree = (repoId: string, defaultBranch?: string) => {
     setSelectedRepoId(repoId);
+    setUseSameName(true);
+    setStrategy('create');
+    setPullLatest(true);
     form.setFieldsValue({
-      name: '',
-      ref: defaultBranch || 'main',
-      createBranch: false,
+      worktreeName: '',
+      branchName: '',
+      sourceBranch: defaultBranch || 'main',
     });
     setCreateWorktreeModalOpen(true);
   };
+
+  // Auto-sync branch name with worktree name when useSameName is checked
+  const worktreeName = Form.useWatch('worktreeName', form);
+  useEffect(() => {
+    if (useSameName && worktreeName) {
+      form.setFieldsValue({ branchName: worktreeName });
+    }
+  }, [worktreeName, useSameName, form]);
+
+  // Auto-toggle pullLatest based on strategy
+  useEffect(() => {
+    if (strategy === 'create') {
+      setPullLatest(true);
+    } else if (strategy === 'checkout') {
+      setPullLatest(false);
+    }
+  }, [strategy]);
 
   const handleCreateRepo = () => {
     repoForm.validateFields().then(values => {
@@ -75,10 +151,32 @@ export const ReposTable: React.FC<ReposTableProps> = ({
     if (!selectedRepoId) return;
 
     form.validateFields().then(values => {
+      const worktreeName = values.worktreeName;
+      const branchName = useSameName ? worktreeName : values.branchName;
+
+      let ref: string;
+      let createBranch: boolean;
+      let sourceBranch: string | undefined;
+
+      if (strategy === 'create') {
+        ref = branchName;
+        createBranch = true;
+        sourceBranch = values.sourceBranch;
+      } else if (strategy === 'checkout') {
+        ref = branchName;
+        createBranch = false;
+      } else {
+        // commit strategy
+        ref = values.commitRef;
+        createBranch = false;
+      }
+
       onCreateWorktree?.(selectedRepoId, {
-        name: values.name,
-        ref: values.ref,
-        createBranch: values.createBranch || false,
+        name: worktreeName,
+        ref,
+        createBranch,
+        pullLatest,
+        sourceBranch,
       });
       form.resetFields();
       setCreateWorktreeModalOpen(false);
@@ -280,9 +378,12 @@ export const ReposTable: React.FC<ReposTableProps> = ({
             label="Repository URL"
             name="url"
             rules={[{ required: true, message: 'Please enter a git repository URL' }]}
-            extra="HTTPS or SSH URL (e.g., https://github.com/user/repo.git)"
+            extra="HTTPS or SSH URL"
           >
-            <Input placeholder="https://github.com/user/repo.git" />
+            <Input
+              placeholder="https://github.com/apache/superset.git"
+              onChange={handleUrlChange}
+            />
           </Form.Item>
 
           <Form.Item
@@ -291,13 +392,13 @@ export const ReposTable: React.FC<ReposTableProps> = ({
             rules={[
               { required: true, message: 'Please enter a slug' },
               {
-                pattern: /^[a-z0-9-]+$/,
-                message: 'Slug must contain only lowercase letters, numbers, and hyphens',
+                pattern: /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/,
+                message: 'Slug must be in org/repo format (e.g., apache/superset)',
               },
             ]}
-            extra="A short identifier for this repo (e.g., my-project)"
+            extra="Auto-detected from URL (editable). Format: org/repo"
           >
-            <Input placeholder="my-project" />
+            <Input placeholder="apache/superset" />
           </Form.Item>
         </Form>
       </Modal>
@@ -313,29 +414,79 @@ export const ReposTable: React.FC<ReposTableProps> = ({
           setSelectedRepoId(null);
         }}
         okText="Create"
+        width={600}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
             label="Worktree Name"
-            name="name"
+            name="worktreeName"
             rules={[{ required: true, message: 'Please enter a worktree name' }]}
-            extra="A descriptive name for this worktree (e.g., feature-x, bugfix-123)"
+            extra="A descriptive name for this worktree"
           >
-            <Input placeholder="my-feature" />
+            <Input placeholder="feature-auth" />
+          </Form.Item>
+
+          <Form.Item>
+            <Checkbox checked={useSameName} onChange={e => setUseSameName(e.target.checked)}>
+              Use same name for git branch
+            </Checkbox>
           </Form.Item>
 
           <Form.Item
-            label="Branch/Ref"
-            name="ref"
-            rules={[{ required: true, message: 'Please enter a branch or ref' }]}
-            extra="The branch or commit SHA to checkout"
+            label="Branch Name"
+            name="branchName"
+            rules={[{ required: !useSameName, message: 'Please enter a branch name' }]}
           >
-            <Input placeholder="main" />
+            <Input
+              placeholder="feature-auth"
+              disabled={useSameName}
+              style={{ backgroundColor: useSameName ? '#f5f5f5' : undefined }}
+            />
           </Form.Item>
 
-          <Form.Item name="createBranch" valuePropName="checked">
-            <Checkbox>Create as new branch</Checkbox>
+          <Form.Item label="Branch Strategy">
+            <Radio.Group value={strategy} onChange={e => setStrategy(e.target.value)}>
+              <Space direction="vertical">
+                <Radio value="create">
+                  Create new branch from:{' '}
+                  <Form.Item
+                    name="sourceBranch"
+                    noStyle
+                    rules={[{ required: strategy === 'create' }]}
+                  >
+                    <Select style={{ width: 120, marginLeft: 8 }} disabled={strategy !== 'create'}>
+                      <Select.Option value="main">main</Select.Option>
+                      <Select.Option value="master">master</Select.Option>
+                      <Select.Option value="develop">develop</Select.Option>
+                      <Select.Option value="staging">staging</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Radio>
+                <Radio value="checkout">Checkout existing branch</Radio>
+                <Radio value="commit">Checkout commit/tag (advanced)</Radio>
+              </Space>
+            </Radio.Group>
           </Form.Item>
+
+          {strategy === 'commit' && (
+            <Form.Item
+              label="Commit SHA or Tag"
+              name="commitRef"
+              rules={[
+                { required: strategy === 'commit', message: 'Please enter a commit SHA or tag' },
+              ]}
+            >
+              <Input placeholder="abc123def or v1.0.0" />
+            </Form.Item>
+          )}
+
+          {strategy === 'create' && (
+            <Form.Item>
+              <Checkbox checked={pullLatest} onChange={e => setPullLatest(e.target.checked)}>
+                Pull latest from remote before creating
+              </Checkbox>
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </div>

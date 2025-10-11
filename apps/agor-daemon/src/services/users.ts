@@ -39,7 +39,7 @@ interface UpdateUserData {
  * Users Service Methods
  */
 export class UsersService {
-  constructor(private db: Database) {}
+  constructor(protected db: Database) {}
 
   /**
    * Find all users (supports filtering by email for authentication)

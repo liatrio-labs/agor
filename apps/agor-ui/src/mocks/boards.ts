@@ -1,8 +1,8 @@
-import type { Board } from '../types';
+import type { Board, BoardID } from '../types';
 import { mockSessionA, mockSessionB, mockSessionC } from './sessions';
 
 export const mockBoardDefault: Board = {
-  board_id: 'board-default',
+  board_id: 'board-default' as BoardID,
   name: 'Default Board',
   description: 'Main workspace for all sessions',
   sessions: [mockSessionA.session_id, mockSessionB.session_id, mockSessionC.session_id],
@@ -13,7 +13,7 @@ export const mockBoardDefault: Board = {
 };
 
 export const mockBoardExperiments: Board = {
-  board_id: 'board-experiments',
+  board_id: 'board-experiments' as BoardID,
   name: 'Experiments',
   description: 'Testing new features and prototypes',
   sessions: [],
@@ -24,7 +24,7 @@ export const mockBoardExperiments: Board = {
 };
 
 export const mockBoardBugFixes: Board = {
-  board_id: 'board-bugfixes',
+  board_id: 'board-bugfixes' as BoardID,
   name: 'Bug Fixes',
   description: 'Tracking bug fix sessions',
   sessions: [],

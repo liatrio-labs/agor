@@ -212,9 +212,9 @@ export default class SessionList extends Command {
 
       // Close socket connection and wait for it to close
       await new Promise<void>(resolve => {
-        client.io.on('disconnect', resolve);
+        client.io.once('disconnect', () => resolve());
         client.io.close();
-        setTimeout(resolve, 1000); // Fallback timeout
+        setTimeout(() => resolve(), 1000); // Fallback timeout
       });
       process.exit(0);
     } catch (error) {

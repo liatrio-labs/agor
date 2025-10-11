@@ -13,7 +13,7 @@ import {
   transcriptsToMessages,
 } from '@agor/core/claude';
 import { generateId } from '@agor/core/db';
-import type { Session } from '@agor/core/types';
+import type { Session, SessionID } from '@agor/core/types';
 import { Args, Command, Flags } from '@oclif/core';
 import chalk from 'chalk';
 
@@ -85,13 +85,14 @@ export default class SessionLoadClaude extends Command {
         : 'Imported Claude Code session';
 
       // Create Agor session
-      const agorSession: Session = {
-        session_id: generateId(),
+      const agorSession: Partial<Session> & { session_id: SessionID; created_by: string } = {
+        session_id: generateId() as SessionID,
         agent: 'claude-code',
         status: 'completed',
         description: description,
         created_at: new Date().toISOString(),
         last_updated: new Date().toISOString(),
+        created_by: 'cli-import',
         repo: {
           cwd: claudeSession.cwd || projectDir,
           managed_worktree: false,
@@ -106,12 +107,8 @@ export default class SessionLoadClaude extends Command {
         },
         concepts: [],
         tasks: [],
-        metadata: {
-          imported_from: 'claude-code',
-          original_session_id: claudeSession.sessionId,
-          transcript_path: claudeSession.transcriptPath,
-          message_count: conversation.length,
-        },
+        message_count: conversation.length,
+        tool_use_count: 0,
       };
 
       // Create session in daemon
@@ -126,7 +123,8 @@ export default class SessionLoadClaude extends Command {
       this.log(`${chalk.blue('●')} Converting ${messages.length} messages...`);
 
       // Bulk insert messages in batches to avoid timeout
-      const messagesBulkService = client.service('messages/bulk');
+      // biome-ignore lint/suspicious/noExplicitAny: Custom service path not in type definitions
+      const messagesBulkService = client.service('messages/bulk' as any);
       const batchSize = 100;
       const totalMessages = messages.length;
 
@@ -147,7 +145,8 @@ export default class SessionLoadClaude extends Command {
       this.log(`${chalk.blue('●')} Extracting ${tasks.length} tasks from user messages...`);
 
       // Bulk insert tasks in batches
-      const tasksBulkService = client.service('tasks/bulk');
+      // biome-ignore lint/suspicious/noExplicitAny: Custom service path not in type definitions
+      const tasksBulkService = client.service('tasks/bulk' as any);
       const taskBatchSize = 100;
       const totalTasks = tasks.length;
       const createdTasks = [];
@@ -197,12 +196,14 @@ export default class SessionLoadClaude extends Command {
 
       // Use bulk link service if available, otherwise fall back to individual updates
       try {
-        const messageLinkService = client.service('messages/link-tasks');
+        // biome-ignore lint/suspicious/noExplicitAny: Custom service path not in type definitions
+        const messageLinkService = client.service('messages/link-tasks' as any);
         // biome-ignore lint/suspicious/noExplicitAny: Custom service method
         await (messageLinkService as any).create({ updates: messageLinkUpdates });
       } catch {
         // Fallback: batch patch in groups of 100
-        const messagesService = client.service('messages');
+        // biome-ignore lint/suspicious/noExplicitAny: Custom service path not in type definitions
+        const messagesService = client.service('messages' as any);
         const batchSize = 100;
         for (let i = 0; i < messageLinkUpdates.length; i += batchSize) {
           const batch = messageLinkUpdates.slice(i, i + batchSize);
@@ -244,9 +245,9 @@ export default class SessionLoadClaude extends Command {
 
       // Close socket connection and wait for it to close
       await new Promise<void>(resolve => {
-        client.io.on('disconnect', resolve);
+        client.io.once('disconnect', () => resolve());
         client.io.close();
-        setTimeout(resolve, 1000); // Fallback timeout
+        setTimeout(() => resolve(), 1000); // Fallback timeout
       });
       process.exit(0);
     } catch (error) {

@@ -14,8 +14,16 @@ export default class WorktreeAdd extends Command {
   static description = 'Create a git worktree for isolated development';
 
   static examples = [
-    '<%= config.bin %> <%= command.id %> myapp feat-auth',
-    '<%= config.bin %> <%= command.id %> myapp fix-cors --ref main',
+    // Case 1: Create new branch (worktree name = branch name)
+    '<%= config.bin %> <%= command.id %> superset feature-auth',
+    // Case 2: Create new branch with different name
+    '<%= config.bin %> <%= command.id %> superset my-experiment --branch feature-x',
+    // Case 3: Checkout existing branch
+    '<%= config.bin %> <%= command.id %> superset fix-api --checkout',
+    // Case 4: Checkout specific ref
+    '<%= config.bin %> <%= command.id %> superset debug-session --ref abc123def',
+    // Case 5: Create branch from specific base
+    '<%= config.bin %> <%= command.id %> superset feature-y --from develop',
   ];
 
   static args = {
@@ -30,9 +38,26 @@ export default class WorktreeAdd extends Command {
   };
 
   static flags = {
+    branch: Flags.string({
+      char: 'b',
+      description: 'Branch name (defaults to same as worktree name)',
+    }),
+    checkout: Flags.boolean({
+      char: 'c',
+      description: 'Checkout existing branch instead of creating new',
+      default: false,
+    }),
     ref: Flags.string({
       char: 'r',
-      description: 'Branch/tag/commit to checkout (defaults to matching branch or default branch)',
+      description: 'Checkout specific commit/tag (advanced)',
+    }),
+    from: Flags.string({
+      char: 'f',
+      description: 'Base branch for new branch (defaults to repo default branch)',
+    }),
+    'no-pull': Flags.boolean({
+      description: 'Do not pull latest from remote before creating',
+      default: false,
     }),
   };
 
@@ -75,7 +100,7 @@ export default class WorktreeAdd extends Command {
       }
 
       // Check if worktree already exists
-      const existing = repo.worktrees.find((w) => w.name === args.name);
+      const existing = repo.worktrees.find(w => w.name === args.name);
       if (existing) {
         this.error(`Worktree '${args.name}' already exists at ${existing.path}`);
       }
@@ -88,37 +113,53 @@ export default class WorktreeAdd extends Command {
       );
       this.log('');
 
-      // Determine ref
-      const ref = flags.ref || args.name;
-      let createBranch = false;
+      // Determine strategy and parameters
+      let ref: string;
+      let createBranch: boolean;
+      let sourceBranch: string | undefined;
+      let pullLatest = !flags['no-pull'];
 
-      // Check if remote branch exists
-      const remoteBranchExists = await hasRemoteBranch(repo.local_path, ref);
-
-      if (remoteBranchExists) {
-        this.log(chalk.dim(`  Remote branch ${chalk.cyan(`origin/${ref}`)} found`));
+      if (flags.ref) {
+        // Case 4: Checkout specific commit/tag (advanced)
+        ref = flags.ref;
+        createBranch = false;
+        pullLatest = false;
+        this.log(chalk.dim(`  Checking out ${chalk.cyan(ref)} (detached HEAD)`));
+      } else if (flags.checkout) {
+        // Case 3: Checkout existing branch
+        ref = flags.branch || args.name;
+        createBranch = false;
+        pullLatest = false;
+        this.log(chalk.dim(`  Checking out existing branch ${chalk.cyan(ref)}`));
       } else {
-        this.log(chalk.dim(`  Branch ${chalk.cyan(ref)} does not exist`));
-        this.log(
-          chalk.dim(`  Creating new branch from ${chalk.cyan(repo.default_branch || 'HEAD')}`)
-        );
+        // Case 1, 2, 5: Create new branch
+        ref = flags.branch || args.name;
         createBranch = true;
+        sourceBranch = flags.from || repo.default_branch || 'main';
+
+        this.log(
+          chalk.dim(`  Creating new branch ${chalk.cyan(ref)} from ${chalk.cyan(sourceBranch)}`)
+        );
+        if (pullLatest) {
+          this.log(chalk.dim(`  Pulling latest ${chalk.cyan(`origin/${sourceBranch}`)}`));
+        }
       }
 
       // Call daemon API to create worktree
       // biome-ignore lint/suspicious/noExplicitAny: Dynamic Feathers service route not in ServiceTypes
-      const updatedRepo = (await (
-        // biome-ignore lint/suspicious/noExplicitAny: Feathers service typing limitation for custom routes
-        client.service(`repos/${repo.repo_id}/worktrees` as any) as any
-      ).create({
-        name: args.name,
-        ref,
-        createBranch,
-      })) as Repo;
+      const updatedRepo =
+        (await // biome-ignore lint/suspicious/noExplicitAny: Feathers service typing limitation for custom routes
+        (client.service(`repos/${repo.repo_id}/worktrees` as any) as any).create({
+          name: args.name,
+          ref,
+          createBranch,
+          pullLatest,
+          sourceBranch,
+        })) as Repo;
 
       this.log(`${chalk.green('✓')} Worktree created and registered`);
 
-      const worktree = updatedRepo.worktrees.find((w) => w.name === args.name);
+      const worktree = updatedRepo.worktrees.find(w => w.name === args.name);
       if (worktree) {
         this.log(chalk.dim(`  Path: ${worktree.path}`));
       }

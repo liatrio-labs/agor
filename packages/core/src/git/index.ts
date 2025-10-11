@@ -146,7 +146,7 @@ export async function isClean(repoPath: string): Promise<boolean> {
 export async function getRemoteUrl(repoPath: string, remote: string = 'origin'): Promise<string> {
   const git = simpleGit(repoPath);
   const remotes = await git.getRemotes(true);
-  const remoteObj = remotes.find((r) => r.name === remote);
+  const remoteObj = remotes.find(r => r.name === remote);
   return remoteObj?.refs.fetch || '';
 }
 
@@ -179,18 +179,40 @@ export interface WorktreeInfo {
  * @param worktreePath - Path where worktree should be created
  * @param ref - Branch/tag/commit to checkout
  * @param createBranch - Whether to create a new branch
+ * @param pullLatest - Whether to fetch from remote before creating worktree
+ * @param sourceBranch - Source branch to base new branch on (used with createBranch)
  */
 export async function createWorktree(
   repoPath: string,
   worktreePath: string,
   ref: string,
-  createBranch: boolean = false
+  createBranch: boolean = false,
+  pullLatest: boolean = false,
+  sourceBranch?: string
 ): Promise<void> {
   const git = simpleGit(repoPath);
+
+  // Pull latest from remote if requested and ref is a branch name (not SHA)
+  if (pullLatest && !ref.match(/^[0-9a-f]{7,40}$/)) {
+    const refToPull = sourceBranch || ref;
+    try {
+      await git.fetch(['origin', refToPull]);
+    } catch (error) {
+      // Ignore fetch errors (branch might not exist on remote yet)
+      console.warn(`Failed to fetch ${refToPull} from origin:`, error);
+    }
+  }
+
   const args = [worktreePath];
 
   if (createBranch) {
     args.push('-b', ref);
+    // Use origin/sourceBranch as base if pullLatest is enabled
+    if (pullLatest && sourceBranch) {
+      args.push(`origin/${sourceBranch}`);
+    } else if (sourceBranch) {
+      args.push(sourceBranch);
+    }
   } else {
     args.push(ref);
   }
@@ -275,7 +297,5 @@ export async function getRemoteBranches(
 ): Promise<string[]> {
   const git = simpleGit(repoPath);
   const branches = await git.branch(['-r']);
-  return branches.all
-    .filter((b) => b.startsWith(`${remote}/`))
-    .map((b) => b.replace(`${remote}/`, ''));
+  return branches.all.filter(b => b.startsWith(`${remote}/`)).map(b => b.replace(`${remote}/`, ''));
 }

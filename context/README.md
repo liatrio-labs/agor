@@ -18,8 +18,11 @@ This directory contains modular knowledge files that document Agor's concepts, a
 - **[design.md](concepts/design.md)** - UI/UX principles and component patterns
 - **[frontend-guidelines.md](concepts/frontend-guidelines.md)** - React/Ant Design patterns, token-based styling, WebSocket integration, component structure
 - **[conversation-ui.md](concepts/conversation-ui.md)** - Task-centric conversation UI, universal message schema, component patterns
+- **[tool-blocks.md](concepts/tool-blocks.md)** - Advanced tool visualization, semantic grouping, file impact graphs
+- **[llm-enrichment.md](concepts/llm-enrichment.md)** - AI-powered session analysis, summaries, pattern detection, quality insights
 - **[websockets.md](concepts/websockets.md)** - Real-time communication with FeathersJS/Socket.io, progressive streaming, future scalability
 - **[agent-integration.md](concepts/agent-integration.md)** - Claude Agent SDK integration, session continuity, live execution
+- **[auth.md](concepts/auth.md)** - Authentication & authorization, anonymous-first, JWT/Local strategies, user attribution
 
 ### Explorations (Work in Progress)
 
@@ -44,7 +47,7 @@ Experimental ideas and designs not yet crystallized into concepts. These represe
 
 **Multiplayer & Collaboration:**
 
-- **[multiplayer-auth.md](explorations/multiplayer-auth.md)** - Authentication and authorization architecture for multi-user collaboration (FeathersJS auth, anonymous mode, OAuth, RBAC)
+- **[multiplayer-auth.md](explorations/multiplayer-auth.md)** - Phase 3 cloud deployment planning (OAuth, organizations, RBAC, API tokens)
 
 **Lifecycle:** `explorations/` → `concepts/` when design is validated and ready to be official
 

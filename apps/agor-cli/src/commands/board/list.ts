@@ -18,8 +18,9 @@ export default class BoardList extends Command {
 
     try {
       // Fetch boards
-      const result = await client.service('boards').find();
-      const boards = Array.isArray(result) ? result : result.data;
+      // biome-ignore lint/suspicious/noExplicitAny: FeathersJS service typing limitation
+      const result = await (client.service('boards') as any).find();
+      const boards = (Array.isArray(result) ? result : result.data) as Board[];
 
       if (boards.length === 0) {
         this.log(chalk.yellow('No boards found.'));
@@ -66,10 +67,10 @@ export default class BoardList extends Command {
   }
 
   private async cleanup(client: import('@agor/core/api').AgorClient): Promise<void> {
-    await new Promise<void>((resolve) => {
-      client.io.on('disconnect', resolve);
+    await new Promise<void>(resolve => {
+      client.io.once('disconnect', () => resolve());
       client.io.close();
-      setTimeout(resolve, 1000);
+      setTimeout(() => resolve(), 1000);
     });
   }
 }

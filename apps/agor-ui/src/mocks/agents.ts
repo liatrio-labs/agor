@@ -1,8 +1,8 @@
 // src/mocks/agents.ts
-import type { Agent } from '../types';
+import type { Agent, AgentID } from '../types';
 
 export const mockAgentClaudecode: Agent = {
-  id: 'claude-code',
+  id: 'claude-code' as AgentID,
   name: 'claude-code',
   icon: '🤖',
   installed: true,
@@ -13,7 +13,7 @@ export const mockAgentClaudecode: Agent = {
 };
 
 export const mockAgentCodex: Agent = {
-  id: 'codex',
+  id: 'codex' as AgentID,
   name: 'codex',
   icon: '💻',
   installed: false,
@@ -23,7 +23,7 @@ export const mockAgentCodex: Agent = {
 };
 
 export const mockAgentCursor: Agent = {
-  id: 'cursor',
+  id: 'cursor' as AgentID,
   name: 'cursor',
   icon: '✏️',
   installed: false,
@@ -32,7 +32,7 @@ export const mockAgentCursor: Agent = {
 };
 
 export const mockAgentGemini: Agent = {
-  id: 'gemini',
+  id: 'gemini' as AgentID,
   name: 'gemini',
   icon: '💎',
   installed: false,

@@ -1,30 +1,22 @@
 # Conversation UI Design
 
 **Status:** Phase 1 Implemented
-**Related:** [frontend-guidelines.md](frontend-guidelines.md), [models.md](models.md)
+**Related:** [frontend-guidelines.md](frontend-guidelines.md), [models.md](models.md), [tool-blocks.md](tool-blocks.md), [llm-enrichment.md](llm-enrichment.md)
 
 ## Overview
 
-Agor displays AI coding conversations with rich, task-centric UI that goes far beyond terminal capabilities. Conversations are organized by tasks (user prompts), with progressive disclosure for tool uses, thinking, and large content.
+Task-centric conversation display with progressive disclosure. Tasks group related messages, tools, and thinking into collapsible sections.
 
-**Core Principle:** Tasks ARE the conversation structure. Every user prompt creates a task that groups all related messages, tools, and thinking.
+**Core Principle:** Tasks ARE the conversation structure. Every user prompt creates a task boundary.
 
 ---
 
-## Universal Message Schema
+## Data Model
 
-### Design Principles
-
-1. **Claude Code as Foundation** - Use Anthropic API message format as baseline
-2. **Content Blocks** - Support structured multi-modal content (text, tool_use, tool_result, images)
-3. **Tool Traceability** - Every tool invocation has ID linking request → result
-4. **Extensibility** - Metadata object allows tool-specific fields
-
-### Core Message Structure
+### Message Structure
 
 ```typescript
 interface Message {
-  // Required
   message_id: MessageID;
   session_id: SessionID;
   role: 'user' | 'assistant' | 'system';
@@ -33,23 +25,16 @@ interface Message {
   timestamp: string;
   content: string | ContentBlock[];
   content_preview: string;
-
-  // Optional
   task_id?: TaskID;
   tool_uses?: ToolUse[];
   metadata?: MessageMetadata;
 }
 ```
 
-### Content Blocks (Claude Format)
+### Content Blocks (Anthropic API Format)
 
 ```typescript
 type ContentBlock = TextBlock | ImageBlock | ToolUseBlock | ToolResultBlock;
-
-interface TextBlock {
-  type: 'text';
-  text: string;
-}
 
 interface ToolUseBlock {
   type: 'tool_use';
@@ -82,22 +67,16 @@ interface Task {
     end_timestamp: string;
   };
   tool_use_count: number;
-  git_state?: {
-    sha_at_start: string;
-    sha_at_end?: string;
-  };
+  git_state?: GitState;
 }
 ```
 
 ---
 
-## Task-Centric UI Architecture
-
-### Visual Hierarchy
+## Visual Hierarchy
 
 ```
 ┌─ SessionDrawer ─────────────────────────────────────────┐
-│                                                           │
 │  Session: "Build authentication system"                  │
 │  📍 feature/auth @ b3e4d12 | 🤖 Claude Code | ⏱️ 2h 15m │
 │                                                           │
@@ -117,36 +96,13 @@ interface Task {
 │  │  🔧 TOOL: Edit                                     │   │
 │  │  📄 src/routes/auth.ts:15-32                       │   │
 │  │  [Show diff ▼]                                     │   │
-│  │                                                     │   │
-│  │  🤖 ASSISTANT (10:24 AM)                           │   │
-│  │  "Created login endpoint..."                       │   │
-│  │                                                     │   │
 │  └─────────────────────────────────────────────────────┘   │
 └───────────────────────────────────────────────────────────┘
 ```
 
-### Implementation Status
-
-**✅ Phase 1: Basic Task-Message Hierarchy (COMPLETE)**
-
-- [x] Task sections with collapse/expand
-- [x] Basic message bubbles (user/assistant)
-- [x] Task metadata badges (status, message count, tool count)
-- [x] Markdown rendering with Typography
-- [x] Progressive message streaming
-- [x] Tool use rendering with collapsible input/output
-
-**Files:**
-
-- `apps/agor-ui/src/components/ConversationView/ConversationView.tsx`
-- `apps/agor-ui/src/components/TaskBlock/TaskBlock.tsx`
-- `apps/agor-ui/src/components/MessageBlock/MessageBlock.tsx`
-- `apps/agor-ui/src/components/ToolUseRenderer/ToolUseRenderer.tsx`
-- `apps/agor-ui/src/components/MarkdownRenderer/MarkdownRenderer.tsx`
-
 ---
 
-## Component Patterns
+## Component Architecture
 
 ### TaskBlock (Collapsible Container)
 
@@ -157,8 +113,8 @@ interface Task {
   <StatusIcon status={task.status} />
   <TaskTitle>{task.description}</TaskTitle>
   <TaskMeta>
-    <Badge>💬 {messageCount} messages</Badge>
-    <Badge>🔧 {toolCount} tools</Badge>
+    <Badge>💬 {messageCount}</Badge>
+    <Badge>🔧 {toolCount}</Badge>
     <Duration>{duration}</Duration>
   </TaskMeta>
 </TaskHeader>
@@ -202,7 +158,7 @@ interface Task {
 </Bubble>
 ```
 
-### ToolUseRenderer
+### ToolUseRenderer (Basic)
 
 ```tsx
 <ToolUseBlock>
@@ -226,14 +182,14 @@ interface Task {
 ## Design Principles
 
 1. **Progressive Disclosure**
-   - Default: High-level summary
-   - One click: Task details + messages
+   - Default: Task summary only
+   - One click: Messages + basic tools
    - Two clicks: Full tool inputs/outputs
 
 2. **Scannable at a Glance**
-   - Task headers with status indicators
+   - Status indicators on task headers
    - Message type icons (👤 user, 🤖 AI)
-   - Visual hierarchy (size, color, spacing)
+   - Visual hierarchy via size, color, spacing
 
 3. **Handle Large Content**
    - Collapsible tool blocks
@@ -247,32 +203,49 @@ interface Task {
 
 ---
 
-## Future Enhancements
+## Implementation Status
 
-### Phase 2: Advanced Tool Visualization
+**✅ Phase 1: Basic Task-Message Hierarchy (COMPLETE)**
 
-- Tool blocks (group sequential tool uses)
+- [x] Task sections with collapse/expand
+- [x] Basic message bubbles (user/assistant)
+- [x] Task metadata badges (status, message count, tool count)
+- [x] Markdown rendering with Typography
+- [x] Progressive message streaming
+- [x] Tool use rendering with collapsible input/output
+
+**Files:**
+
+- `apps/agor-ui/src/components/ConversationView/ConversationView.tsx`
+- `apps/agor-ui/src/components/TaskBlock/TaskBlock.tsx`
+- `apps/agor-ui/src/components/MessageBlock/MessageBlock.tsx`
+- `apps/agor-ui/src/components/ToolUseRenderer/ToolUseRenderer.tsx`
+- `apps/agor-ui/src/components/MarkdownRenderer/MarkdownRenderer.tsx`
+
+**📋 Phase 2: Advanced Tool Visualization**
+
+See [tool-blocks.md](tool-blocks.md) for:
+
+- Tool grouping (search, file changes, test runs, git ops)
+- Semantic block rendering
 - File impact graphs
 - Test result matrices
-- Search result heatmaps
 
-### Phase 3: LLM-Powered Enrichment
+**📋 Phase 3: LLM-Powered Enrichment**
 
-- Task summaries (AI-generated concise descriptions)
-- Session summaries (key changes, complexity assessment)
+See [llm-enrichment.md](llm-enrichment.md) for:
+
+- Task summaries (AI-generated descriptions)
+- Session summaries (key changes, complexity)
 - Pattern detection (reusable approaches)
 - Quality insights (test status, type errors)
-
-### Phase 4: Extensibility
-
-- Plugin architecture for custom tool renderers
-- Tool-specific components (Cursor diff, Aider commits)
-- Custom metadata display
 
 ---
 
 ## Related Documents
 
+- [tool-blocks.md](tool-blocks.md) - Advanced tool visualization patterns
+- [llm-enrichment.md](llm-enrichment.md) - AI-powered session analysis
 - [models.md](models.md) - Data model definitions
 - [frontend-guidelines.md](frontend-guidelines.md) - React patterns
 - [websockets.md](websockets.md) - Real-time communication

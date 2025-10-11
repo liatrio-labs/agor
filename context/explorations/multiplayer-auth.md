@@ -1,403 +1,124 @@
-# Multiplayer & Authentication
+# Cloud Multiplayer Authentication (Phase 3)
 
-Related: [[architecture]], [[core]], [[models]]
+**Status:** Future Work / Planning
+**Related:** [../concepts/auth.md](../concepts/auth.md), [../concepts/architecture.md](../concepts/architecture.md)
 
-**Status:** Exploration (Pre-Implementation)
-**Last Updated:** January 2025
+**Note:** Basic authentication is implemented. See [context/concepts/auth.md](../concepts/auth.md) for current implementation (Phase 2 - Optional Local Auth).
 
----
-
-## Overview
-
-This document explores authentication and authorization architecture for Agor's multiplayer features. Our goal is to enable multi-user collaboration while preserving the local-first philosophy and minimizing initial configuration burden.
-
-**Key Requirements:**
-
-1. **Local-first default** - Zero config for single-user local development
-2. **Progressive enhancement** - Add auth only when needed (team collaboration)
-3. **Future-proof** - Support OAuth, SAML, custom identity providers
-4. **Developer control** - Own your data, no vendor lock-in
-5. **Framework integration** - Work seamlessly with FeathersJS + Drizzle
+This document explores Phase 3: Cloud deployment with OAuth, organizations, and role-based permissions.
 
 ---
 
-## Architecture Philosophy
+## Goal
 
-### Local-First Auth Model
+Enable secure multi-user collaboration in cloud-hosted Agor deployments with:
 
-**V1 (Local Single-User):** Trust-based default
-
-```
-User runs locally → Full admin access → No authentication
-Rationale: If you control the OS, you control the database anyway
-```
-
-**V2 (Local Multi-User):** Optional authentication
-
-```
-Team shares daemon → Basic auth (admin/admin) → Simple password protection
-Rationale: Lightweight protection for shared dev environments
-```
-
-**V3 (Cloud Multi-User):** Full authentication + authorization
-
-```
-Cloud deployment → JWT + OAuth → Role-based permissions
-Rationale: Production-grade security for team collaboration
-```
-
-### Progressive Enhancement Strategy
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ V1: Local Single-User (Current)                             │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ No auth required                                        │ │
-│ │ All operations permitted                                │ │
-│ │ Database: ~/.agor/agor.db                              │ │
-│ └─────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ V2: Local Multi-User (Optional)                             │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ Anonymous mode: Full access (default)                   │ │
-│ │ Admin mode: Username/password (opt-in)                  │ │
-│ │ Database: Same local SQLite                            │ │
-│ └─────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ V3: Cloud Multi-User (Future)                               │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ JWT authentication required                             │ │
-│ │ OAuth providers (GitHub, Google, etc.)                  │ │
-│ │ Custom SAML/OIDC for enterprises                        │ │
-│ │ Role-based permissions (owner, admin, member, viewer)   │ │
-│ │ Database: PostgreSQL (Turso/Supabase)                  │ │
-│ └─────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
+1. **OAuth providers** - GitHub, Google, generic OIDC/SAML
+2. **Organizations** - Team workspaces with member management
+3. **Role-based permissions** - Fine-grained access control
+4. **Session sharing** - Board-level visibility controls
+5. **API tokens** - Programmatic access for automation
 
 ---
 
-## Technology Evaluation
+## Architecture Changes
 
-### Option 1: FeathersJS Built-in Authentication
+### From Local SQLite → Cloud PostgreSQL
 
-**Pros:**
+**Current (V2):**
 
-- ✅ Native integration with existing FeathersJS daemon
-- ✅ Zero additional dependencies (already using Feathers)
-- ✅ Supports JWT, Local, OAuth strategies out of the box
-- ✅ Works with Drizzle ORM (custom user service)
-- ✅ WebSocket authentication (critical for real-time sync)
-- ✅ Anonymous authentication via custom strategy
+```
+Local machine → SQLite (~/.agor/agor.db) → Anonymous or basic auth
+```
 
-**Cons:**
+**Future (V3):**
 
-- ⚠️ Manual schema setup (no auto-generation)
-- ⚠️ Less modern DX compared to newer libraries
-- ⚠️ Requires custom hooks for complex RBAC
+```
+Multiple users → PostgreSQL (Turso/Supabase) → OAuth + RBAC
+```
 
-**Verdict:** **RECOMMENDED** - Best fit for Agor's architecture
+**Migration Strategy:**
 
-**Implementation:**
+- Export local data: `agor export --output backup.json`
+- Deploy PostgreSQL: `agor cloud deploy --provider turso`
+- Import data: `agor import --input backup.json --db $DATABASE_URL`
+
+---
+
+## Data Model Extensions
+
+### Organizations Table
 
 ```typescript
-// apps/agor-daemon/src/services/users.ts
-import { AuthenticationService, JWTStrategy } from '@feathersjs/authentication';
-import { LocalStrategy } from '@feathersjs/authentication-local';
-import { AnonymousStrategy } from './strategies/anonymous';
-
-// Configure authentication service
-app.configure(
-  authentication({
-    secret: process.env.JWT_SECRET || 'local-dev-secret',
-    entity: 'user',
-    service: 'users',
-    authStrategies: ['jwt', 'local', 'anonymous'],
-    jwtOptions: {
-      header: { typ: 'access' },
-      audience: 'https://agor.dev',
-      issuer: 'agor',
-      algorithm: 'HS256',
-      expiresIn: '7d',
-    },
-  })
-);
-
-authentication.register('jwt', new JWTStrategy());
-authentication.register('local', new LocalStrategy());
-authentication.register('anonymous', new AnonymousStrategy());
-```
-
-**Anonymous Strategy (V1/V2 Default):**
-
-```typescript
-// apps/agor-daemon/src/strategies/anonymous.ts
-import { AuthenticationBaseStrategy } from '@feathersjs/authentication';
-
-export class AnonymousStrategy extends AuthenticationBaseStrategy {
-  async authenticate(authentication, params) {
-    const { anonymous } = authentication;
-
-    // Check if anonymous mode is enabled in config
-    const config = await loadConfig();
-    if (!config.daemon?.allowAnonymous) {
-      throw new NotAuthenticated('Anonymous access disabled');
-    }
-
-    // Return anonymous user with full permissions
-    return {
-      anonymous: true,
-      user: {
-        id: 'anonymous',
-        role: 'admin', // Full access in local mode
-      },
-    };
-  }
-}
-```
-
-**Migration Path:**
-
-```typescript
-// V1 → V2: Add users table without breaking existing installations
-// packages/core/src/db/schema.ts
-
-export const users = sqliteTable('users', {
-  user_id: text('user_id').primaryKey(),
-  email: text('email').unique(),
-  password: text('password'), // bcrypt hashed
-  name: text('name'),
-  role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).default('member'),
-  created_at: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-  updated_at: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-  data: json('data').$type<{
-    avatar?: string;
-    preferences?: Record<string, unknown>;
-  }>(),
-});
-
-// Optional table - only created if user enables authentication
-// Default: No users table = anonymous mode
-```
-
----
-
-### Option 2: Better Auth
-
-**Pros:**
-
-- ✅ Modern TypeScript-first DX
-- ✅ Native Drizzle adapter (auto-generates schema)
-- ✅ Built-in OAuth providers (50+)
-- ✅ Session management with DB storage
-- ✅ Two-factor authentication support
-
-**Cons:**
-
-- ❌ Designed for Next.js/React Server Components
-- ❌ No native FeathersJS integration
-- ❌ WebSocket auth requires custom adapter
-- ⚠️ Additional dependency (~500kb)
-
-**Verdict:** **NOT RECOMMENDED** - Wrong framework fit
-
----
-
-### Option 3: Auth.js (NextAuth)
-
-**Pros:**
-
-- ✅ Mature ecosystem (widely adopted)
-- ✅ Drizzle adapter available
-- ✅ Extensive OAuth provider support
-- ✅ Session database storage
-
-**Cons:**
-
-- ❌ Next.js-centric (requires adapters for other frameworks)
-- ❌ No FeathersJS integration
-- ❌ WebSocket authentication not supported
-- ⚠️ Moving target (v4 → v5 migration)
-
-**Verdict:** **NOT RECOMMENDED** - Framework mismatch
-
----
-
-### Option 4: Clerk
-
-**Pros:**
-
-- ✅ Excellent developer experience
-- ✅ Hosted auth (zero backend code)
-- ✅ Built-in user management UI
-- ✅ Organization/team support
-
-**Cons:**
-
-- ❌ Vendor lock-in (data hosted by Clerk)
-- ❌ Paid service (cost scales with users)
-- ❌ Not local-first (requires internet)
-- ❌ Conflicts with Agor's "own your data" philosophy
-
-**Verdict:** **NOT RECOMMENDED** - Philosophical mismatch
-
----
-
-## Recommended Architecture
-
-### Phase 1: Anonymous Mode (V1 - Current)
-
-**Implementation:** No changes needed
-
-```typescript
-// Default behavior: All requests succeed
-// No authentication middleware
-// No users table
-```
-
-**Configuration:**
-
-```yaml
-# ~/.agor/config.yaml
-daemon:
-  allowAnonymous: true # Default
-  requireAuth: false # Default
-```
-
----
-
-### Phase 2: Optional Local Auth (V2)
-
-**Implementation:** Add FeathersJS authentication (opt-in)
-
-**Database Schema:**
-
-```typescript
-// Conditional migration: Only run if user enables auth
-export const users = sqliteTable('users', {
-  user_id: text('user_id').primaryKey(),
-  email: text('email').unique().notNull(),
-  password: text('password').notNull(), // bcrypt
-  name: text('name'),
-  role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }).default('member'),
-  created_at: integer('created_at', { mode: 'timestamp' }),
-  data: json('data').$type<{ avatar?: string }>(),
-});
-```
-
-**Enable Auth:**
-
-```bash
-# CLI command to initialize authentication
-$ agor auth init
-
-? Enable authentication? (Y/n) y
-? Create admin user? (Y/n) y
-? Admin email: admin@localhost
-? Admin password: [hidden]
-
-✓ Created users table
-✓ Created admin user (admin@localhost)
-✓ Updated config: requireAuth=true
-
-Next steps:
-  1. Restart daemon: cd apps/agor-daemon && pnpm dev
-  2. Login: agor auth login
-```
-
-**Authentication Flow:**
-
-```typescript
-// CLI authentication
-$ agor auth login
-? Email: admin@localhost
-? Password: ****
-✓ Authenticated successfully
-✓ Token saved to ~/.agor/auth.json
-
-// Token-based requests
-const client = createClient('http://localhost:3030', {
-  authentication: {
-    strategy: 'jwt',
-    accessToken: loadToken(), // Load from ~/.agor/auth.json
-  }
-});
-
-// Anonymous fallback (if auth disabled)
-const client = createClient('http://localhost:3030', {
-  authentication: {
-    strategy: 'anonymous',
-  }
-});
-```
-
-**Hooks for Protected Routes:**
-
-```typescript
-// apps/agor-daemon/src/services/sessions.ts
-import { authenticate } from '@feathersjs/authentication';
-
-export const sessionHooks = {
-  before: {
-    all: [
-      // Only require auth if enabled in config
-      async context => {
-        const config = await loadConfig();
-        if (config.daemon?.requireAuth) {
-          return authenticate('jwt', 'anonymous')(context);
-        }
-        return context;
-      },
-    ],
-    create: [
-      /* ... */
-    ],
-  },
-};
-```
-
----
-
-### Phase 3: Cloud Multi-User (V3)
-
-**Implementation:** Full authentication + authorization
-
-**Database Schema (PostgreSQL):**
-
-```typescript
-// Add organization/team support
 export const organizations = pgTable('organizations', {
   org_id: text('org_id').primaryKey(),
+  created_at: timestamp('created_at').defaultNow(),
+
+  // Materialized
   name: text('name').notNull(),
   slug: text('slug').unique().notNull(),
   owner_id: text('owner_id').references(() => users.user_id),
-  created_at: timestamp('created_at').defaultNow(),
-});
 
-export const organizationMembers = pgTable('organization_members', {
-  org_id: text('org_id').references(() => organizations.org_id),
-  user_id: text('user_id').references(() => users.user_id),
-  role: text('role', { enum: ['owner', 'admin', 'member', 'viewer'] }),
-  joined_at: timestamp('joined_at').defaultNow(),
-});
-
-// Add ownership to sessions
-export const sessions = pgTable('sessions', {
-  // ... existing fields
-  owner_id: text('owner_id').references(() => users.user_id),
-  org_id: text('org_id').references(() => organizations.org_id),
-  visibility: text('visibility', { enum: ['private', 'team', 'public'] }).default('private'),
+  // JSON blob
+  data: jsonb('data').$type<{
+    description?: string;
+    avatar?: string;
+    settings?: {
+      defaultVisibility?: 'private' | 'team' | 'public';
+      allowGuestAccess?: boolean;
+    };
+  }>(),
 });
 ```
 
-**OAuth Configuration:**
+### Organization Members
 
 ```typescript
-// apps/agor-daemon/src/authentication.ts
+export const organizationMembers = pgTable('organization_members', {
+  org_id: text('org_id').references(() => organizations.org_id),
+  user_id: text('user_id').references(() => users.user_id),
+  role: text('role', {
+    enum: ['owner', 'admin', 'member', 'viewer'],
+  }).notNull(),
+  joined_at: timestamp('joined_at').defaultNow(),
+});
+```
+
+### Session Visibility & Ownership
+
+```typescript
+// Add to sessions table
+{
+  owner_id: text('owner_id').references(() => users.user_id),
+  org_id: text('org_id').references(() => organizations.org_id),
+  visibility: text('visibility', {
+    enum: ['private', 'team', 'public']
+  }).default('private'),
+}
+```
+
+**Visibility Rules:**
+
+- `private`: Only owner can access
+- `team`: All org members can access
+- `public`: Anyone with link can view (read-only)
+
+---
+
+## OAuth Integration
+
+### Providers
+
+**Supported via FeathersJS OAuth:**
+
+- GitHub
+- Google
+- Generic OIDC (custom identity providers)
+- SAML (enterprise)
+
+### Implementation
+
+```typescript
 import { OAuthStrategy } from '@feathersjs/authentication-oauth';
 
 class GitHubStrategy extends OAuthStrategy {
@@ -415,59 +136,103 @@ authentication.register('github', new GitHubStrategy());
 authentication.register('google', new GoogleStrategy());
 ```
 
-**Authorization with CASL:**
+### OAuth Flow
+
+```
+1. User clicks "Login with GitHub"
+2. Redirect to GitHub OAuth
+3. GitHub redirects back with code
+4. Exchange code for profile
+5. Create or update user record
+6. Issue JWT token
+7. Return to app
+```
+
+### Configuration
+
+```yaml
+daemon:
+  oauth:
+    github:
+      clientId: env:GITHUB_CLIENT_ID
+      clientSecret: env:GITHUB_CLIENT_SECRET
+      callbackURL: https://app.agor.dev/auth/github/callback
+    google:
+      clientId: env:GOOGLE_CLIENT_ID
+      clientSecret: env:GOOGLE_CLIENT_SECRET
+      callbackURL: https://app.agor.dev/auth/google/callback
+```
+
+---
+
+## Role-Based Permissions (RBAC)
+
+### Permission System with CASL
+
+**Library:** [@casl/ability](https://casl.js.org/)
+
+**Roles:**
+
+- `owner`: Full control (delete org, manage billing)
+- `admin`: Manage members, sessions, boards
+- `member`: Create sessions, edit own sessions
+- `viewer`: Read-only access to team content
+
+### Ability Definitions
 
 ```typescript
-// packages/core/src/permissions/abilities.ts
 import { AbilityBuilder, createMongoAbility } from '@casl/ability';
 
 export function defineAbilitiesFor(user, orgRole) {
   const { can, cannot, build } = new AbilityBuilder(createMongoAbility);
 
-  // Anonymous users (local mode)
+  // Anonymous users (local mode compatibility)
   if (user.role === 'admin' && user.id === 'anonymous') {
-    can('manage', 'all'); // Full access in local mode
+    can('manage', 'all');
     return build();
   }
 
-  // Authenticated users
+  // Public content (anyone can read)
   can('read', 'Session', { visibility: 'public' });
-  can('manage', 'Session', { owner_id: user.id }); // Own sessions
 
-  // Organization members
-  if (orgRole) {
+  // Own content (full control)
+  can('manage', 'Session', { owner_id: user.id });
+
+  // Organization content (based on role)
+  if (orgRole === 'owner' || orgRole === 'admin') {
+    can('manage', 'Session', { org_id: user.org_id });
+    can('manage', 'Board', { org_id: user.org_id });
+    can('manage', 'OrganizationMember', { org_id: user.org_id });
+  }
+
+  if (orgRole === 'member') {
     can('read', 'Session', { org_id: user.org_id, visibility: 'team' });
+    can('create', 'Session');
+    can('update', 'Session', { owner_id: user.id });
+  }
 
-    if (orgRole === 'admin' || orgRole === 'owner') {
-      can('manage', 'Session', { org_id: user.org_id });
-      can('manage', 'Board', { org_id: user.org_id });
-    }
-
-    if (orgRole === 'member') {
-      can('create', 'Session');
-      can('update', 'Session', { owner_id: user.id });
-    }
-
-    if (orgRole === 'viewer') {
-      can('read', 'Session', { org_id: user.org_id });
-      cannot('create', 'Session');
-    }
+  if (orgRole === 'viewer') {
+    can('read', 'Session', { org_id: user.org_id, visibility: 'team' });
+    cannot('create', 'Session');
+    cannot('update', 'Session');
   }
 
   return build();
 }
 ```
 
-**Hook Integration:**
+### FeathersJS Hook Integration
 
 ```typescript
-// apps/agor-daemon/src/hooks/authorize.ts
 import { defineAbilitiesFor } from '@agor/core/permissions';
 import { Forbidden } from '@feathersjs/errors';
 
 export const authorize = (action, subject) => async context => {
   const { user } = context.params;
-  const ability = defineAbilitiesFor(user, user?.orgRole);
+
+  // Load org membership
+  const membership = await getOrgMembership(user.id);
+  const ability = defineAbilitiesFor(user, membership?.role);
 
   if (!ability.can(action, subject)) {
     throw new Forbidden(`You cannot ${action} ${subject}`);
@@ -476,7 +241,7 @@ export const authorize = (action, subject) => async context => {
   return context;
 };
 
-// Usage in service
+// Apply to services
 export const sessionHooks = {
   before: {
     create: [authenticate('jwt'), authorize('create', 'Session')],
@@ -486,395 +251,268 @@ export const sessionHooks = {
 };
 ```
 
----
+### Query Filtering by Permissions
 
-## Configuration Design
+```typescript
+// Automatically filter queries based on permissions
+app.service('sessions').hooks({
+  before: {
+    find: [
+      async context => {
+        const { user } = context.params;
+        const membership = await getOrgMembership(user.id);
 
-### Config File Structure
+        // Build query based on what user can access
+        context.params.query = {
+          $or: [
+            { owner_id: user.id }, // Own sessions
+            { org_id: membership.org_id, visibility: 'team' }, // Team sessions
+            { visibility: 'public' }, // Public sessions
+          ],
+        };
 
-```yaml
-# ~/.agor/config.yaml
-
-# Daemon settings
-daemon:
-  port: 3030
-  host: localhost
-
-  # Authentication mode
-  allowAnonymous: true # V1/V2: Allow unauthenticated access
-  requireAuth: false # V3: Require authentication
-
-  # Session management
-  jwt:
-    secret: 'auto-generated-on-first-run'
-    expiresIn: '7d'
-
-  # OAuth providers (V3)
-  oauth:
-    github:
-      clientId: env:GITHUB_CLIENT_ID
-      clientSecret: env:GITHUB_CLIENT_SECRET
-    google:
-      clientId: env:GOOGLE_CLIENT_ID
-      clientSecret: env:GOOGLE_CLIENT_SECRET
-
-# Database settings
-database:
-  type: sqlite # V1/V2: sqlite, V3: postgres
-  path: file:~/.agor/agor.db
-
-  # Cloud deployment (V3)
-  # url: env:DATABASE_URL
-
-# Permissions (V3)
-permissions:
-  defaultRole: member # Default role for new users
-  enableOrgSupport: false # Enable organizations/teams
-```
-
-### Environment Variables
-
-```bash
-# V1/V2: No env vars needed (local mode)
-
-# V3: Cloud deployment
-export AGOR_DATABASE_URL="postgres://..."
-export AGOR_JWT_SECRET="production-secret"
-export GITHUB_CLIENT_ID="..."
-export GITHUB_CLIENT_SECRET="..."
+        return context;
+      },
+    ],
+  },
+});
 ```
 
 ---
 
-## Migration Strategy
+## API Tokens for Automation
 
-### V1 → V2: Enable Authentication (Backward Compatible)
+### Use Cases
 
-**Step 1:** Add users table (optional migration)
+- CI/CD pipelines creating sessions
+- Scripted session analysis
+- Third-party integrations
 
-```bash
-$ agor auth init
-? Enable authentication? Yes
-✓ Created users table
-✓ Config updated: requireAuth=false, allowAnonymous=true
+### Token Types
+
+**Personal Access Tokens (PATs):**
+
+- User-scoped
+- Long-lived (30-90 days)
+- Revocable
+
+**Organization API Keys:**
+
+- Org-scoped
+- Role-based (read-only, read-write, admin)
+- Multiple keys per org
+
+### Implementation
+
+```typescript
+export const apiTokens = pgTable('api_tokens', {
+  token_id: text('token_id').primaryKey(),
+  user_id: text('user_id').references(() => users.user_id),
+  org_id: text('org_id').references(() => organizations.org_id),
+
+  name: text('name').notNull(), // "CI Pipeline Token"
+  token_hash: text('token_hash').notNull(), // bcrypt hash
+
+  scopes: text('scopes', { mode: 'json' }).$type<string[]>(), // ['sessions:read', 'boards:write']
+
+  last_used_at: timestamp('last_used_at'),
+  expires_at: timestamp('expires_at'),
+  created_at: timestamp('created_at').defaultNow(),
+});
 ```
 
-**Step 2:** Create admin user
+### Usage
 
 ```bash
-$ agor auth create-user
-? Email: admin@localhost
-? Password: ****
-? Role: admin
-✓ User created
-```
+# Create PAT
+$ agor auth token create --name "CI Pipeline" --expires 90d
+✓ Token created: agor_pat_abc123xyz...
+⚠️  Save this token securely - it won't be shown again
 
-**Step 3:** Gradually require auth
-
-```bash
-$ agor config set daemon.requireAuth true
-✓ Authentication now required
-⚠️  Anonymous fallback still enabled
-```
-
-**Step 4:** Disable anonymous mode (fully authenticated)
-
-```bash
-$ agor config set daemon.allowAnonymous false
-✓ Anonymous access disabled
-✓ All requests must provide JWT token
-```
-
----
-
-### V2 → V3: Cloud Deployment
-
-**Step 1:** Migrate to PostgreSQL
-
-```bash
-# Export local data
-$ agor export --output backup.json
-
-# Deploy PostgreSQL (Turso/Supabase/Neon)
-$ agor cloud deploy --provider turso
-
-# Import data
-$ agor import --input backup.json --db $DATABASE_URL
-```
-
-**Step 2:** Enable OAuth
-
-```bash
-$ agor config set oauth.github.clientId $GITHUB_CLIENT_ID
-$ agor config set oauth.github.clientSecret $GITHUB_CLIENT_SECRET
-$ agor auth test-oauth github
-✓ GitHub OAuth configured correctly
-```
-
-**Step 3:** Enable organizations
-
-```bash
-$ agor config set permissions.enableOrgSupport true
-$ agor org create --name "My Team" --slug my-team
-✓ Organization created
+# Use token
+$ curl -H "Authorization: Bearer agor_pat_abc123xyz..." \
+  https://api.agor.dev/sessions
 ```
 
 ---
 
-## Implementation Checklist
+## Session Sharing
 
-### Phase 1: V1 (Current) - DONE ✅
+### Share Session via Link
 
-- [x] No authentication
-- [x] Full local access
-- [x] SQLite database
+```bash
+# Generate shareable link
+$ agor session share <session-id> --visibility public
+✓ Session shared: https://agor.dev/s/abc123
 
-### Phase 2: V2 (Optional Auth) - TODO
+# Revoke public access
+$ agor session share <session-id> --visibility private
+```
 
-#### Database Schema
+### Board-Level Sharing
 
-- [ ] Create users table schema
-- [ ] Add conditional migration (only if auth enabled)
-- [ ] Add `owner_id` to sessions/boards/repos (nullable)
+```typescript
+// Share entire board with team
+await boardsService.patch(boardId, {
+  visibility: 'team',
+  org_id: orgId,
+});
 
-#### Authentication Service
+// All sessions on board inherit visibility
+```
 
-- [ ] Implement FeathersJS authentication service
-- [ ] Implement JWT strategy
-- [ ] Implement Local strategy (username/password)
-- [ ] Implement Anonymous strategy (default)
-- [ ] Add bcrypt password hashing
+---
 
-#### CLI Commands
+## Migration Checklist
 
-- [ ] `agor auth init` - Initialize authentication
-- [ ] `agor auth create-user` - Create user
-- [ ] `agor auth login` - Login and save token
-- [ ] `agor auth logout` - Clear saved token
-- [ ] `agor auth whoami` - Show current user
+### Database
 
-#### Configuration
+- [ ] Migrate schema from SQLite → PostgreSQL
+- [ ] Create organizations table
+- [ ] Create organization_members table
+- [ ] Add `owner_id`, `org_id`, `visibility` to sessions/boards
+- [ ] Create api_tokens table
 
-- [ ] Add auth config to `~/.agor/config.yaml`
-- [ ] Add token storage to `~/.agor/auth.json`
-- [ ] Auto-generate JWT secret on first run
-- [ ] Support env var override
+### Authentication
 
-#### Hooks & Middleware
+- [ ] Configure OAuth providers (GitHub, Google)
+- [ ] Test OAuth flow end-to-end
+- [ ] Implement generic OIDC strategy
+- [ ] Add SAML support (enterprise)
 
-- [ ] Add conditional authenticate hook
-- [ ] Skip auth if `requireAuth=false`
-- [ ] Allow anonymous fallback if `allowAnonymous=true`
+### Permissions
 
-#### UI Support
+- [ ] Integrate CASL for ability definitions
+- [ ] Add authorization hooks to all services
+- [ ] Implement query filtering by permissions
+- [ ] Test permission edge cases
 
-- [ ] Add login form to React UI
-- [ ] Store JWT token in localStorage
-- [ ] Pass token to FeathersJS client
-- [ ] Show current user in header
+### API Tokens
 
-### Phase 3: V3 (Cloud Multi-User) - FUTURE
+- [ ] Implement token generation
+- [ ] Add token validation middleware
+- [ ] Create token management UI
+- [ ] Add token revocation
 
-#### Database Schema
+### Organizations
 
-- [ ] Organizations table
-- [ ] OrganizationMembers table
-- [ ] Add `org_id` to sessions/boards
-- [ ] Add `visibility` field (private/team/public)
+- [ ] Organization creation flow
+- [ ] Member invitation system
+- [ ] Role management UI
+- [ ] Billing integration (future)
 
-#### OAuth
+### UI
 
-- [ ] GitHub OAuth strategy
-- [ ] Google OAuth strategy
-- [ ] Generic OIDC strategy
-
-#### Permissions
-
-- [ ] Integrate CASL for RBAC
-- [ ] Define abilities per role
-- [ ] Add authorization hooks
-- [ ] Filter queries by permissions
-
-#### Multi-tenancy
-
-- [ ] Organization creation
-- [ ] Member invitations
-- [ ] Role management
-- [ ] Session sharing
+- [ ] OAuth login buttons
+- [ ] Organization switcher
+- [ ] Member management page
+- [ ] Session sharing controls
+- [ ] API token management
 
 ---
 
 ## Security Considerations
 
-### Local Mode (V1/V2)
+### OAuth Security
 
-**Threat Model:**
+- Use state parameter to prevent CSRF
+- Validate redirect URLs
+- Store OAuth tokens securely (encrypted at rest)
+- Implement token refresh flow
 
-- **Attacker has OS access** → Game over (they can read `~/.agor/agor.db` directly)
-- **Attacker has network access** → Low risk (daemon binds to localhost)
-- **Multiple users on same machine** → Use OS file permissions
+### API Token Security
 
-**Mitigation:**
+- Hash tokens with bcrypt before storage
+- Show token only once at creation
+- Support token revocation
+- Implement rate limiting per token
+- Log token usage for audit
 
-```bash
-# Restrict database file permissions
-chmod 600 ~/.agor/agor.db
-chmod 700 ~/.agor/
+### Permission System
 
-# Bind daemon to localhost only
-$ agor daemon start --host 127.0.0.1
-```
+- Default deny (whitelist approach)
+- Validate permissions on every request
+- Filter queries by permissions (don't rely on client)
+- Audit permission changes
 
-### Cloud Mode (V3)
+### PostgreSQL Security
 
-**Threat Model:**
-
-- **Unauthorized access** → Require JWT authentication
-- **Session hijacking** → Short-lived tokens + refresh tokens
-- **CSRF attacks** → SameSite cookies + CORS restrictions
-- **SQL injection** → Drizzle ORM (parameterized queries)
-
-**Mitigation:**
-
-```typescript
-// JWT with short expiry
-jwtOptions: {
-  expiresIn: '15m',  // Access token
-}
-
-// Refresh tokens in database
-refreshTokens: {
-  expiresIn: '30d',
-  storage: 'database',
-}
-
-// CORS restrictions
-cors: {
-  origin: ['https://agor.dev', 'https://app.agor.dev'],
-  credentials: true,
-}
-
-// Rate limiting
-rateLimit: {
-  max: 100,
-  windowMs: 60000, // 1 minute
-}
-```
+- Use SSL/TLS for connections
+- Rotate database credentials
+- Implement row-level security (RLS) policies
+- Regular backups with encryption
 
 ---
 
-## Alternative Approaches Considered
+## Cost Estimates
 
-### 1. Supabase Auth
+### Infrastructure (Cloud Deployment)
 
-**Pros:** Turnkey solution, built-in user management
-**Cons:** Vendor lock-in, requires Supabase hosting
-**Verdict:** Too opinionated for local-first use case
+**Database (Turso/Supabase):**
 
-### 2. Auth0
+- Free tier: 500 MB, 1B row reads/month
+- Pro tier: $25/month (10 GB, 10B row reads)
 
-**Pros:** Enterprise-grade, extensive provider support
-**Cons:** Expensive, overkill for small teams, requires internet
-**Verdict:** Not suitable for local development
+**Hosting (Railway/Fly.io):**
 
-### 3. Keycloak
+- Daemon: ~$5/month (256MB RAM)
+- UI: Static hosting free (Vercel/Netlify)
 
-**Pros:** Self-hosted, open source, supports SAML/OIDC
-**Cons:** Heavy (Java), complex setup, requires separate service
-**Verdict:** Too complex for V2, possible for V3 enterprise
+**OAuth (Free):**
 
-### 4. Custom JWT Implementation
+- GitHub/Google OAuth: Free
+- Custom OIDC: Depends on provider
 
-**Pros:** Full control, minimal dependencies
-**Cons:** Security risks (easy to get wrong), lack of OAuth support
-**Verdict:** FeathersJS auth is better (battle-tested, OAuth ready)
+**Total:** ~$30-50/month for small team (<10 users)
+
+### Development Time Estimate
+
+- Organizations + OAuth: 2-3 weeks
+- RBAC with CASL: 1-2 weeks
+- API tokens: 1 week
+- UI for team management: 1-2 weeks
+- Testing + polish: 1 week
+
+**Total:** ~6-9 weeks for Phase 3
 
 ---
 
 ## Open Questions
 
-1. **Workspace vs Organization?**
-   - Should we use "workspace" terminology (Slack/Notion) or "organization" (GitHub)?
-   - Recommendation: "Organization" (aligns with GitHub OAuth scopes)
+1. **Workspace vs Organization terminology?**
+   - Recommendation: "Organization" (aligns with GitHub)
 
-2. **Session Sharing Granularity?**
-   - Share individual sessions vs entire boards?
-   - Recommendation: Board-level sharing (simpler permissions)
+2. **Session sharing granularity?**
+   - Share individual sessions or entire boards?
+   - Recommendation: Board-level (simpler permissions)
 
-3. **Guest Access?**
-   - Allow unauthenticated users to view public sessions?
-   - Recommendation: Yes for V3 (public session links)
+3. **Guest access for public sessions?**
+   - Allow unauthenticated viewing?
+   - Recommendation: Yes (read-only public links)
 
-4. **API Keys for Automation?**
-   - Support API tokens for CI/CD integration?
-   - Recommendation: Yes (personal access tokens, scoped permissions)
+4. **Billing integration?**
+   - Stripe for paid plans?
+   - Recommendation: Defer until user validation
 
-5. **WebSocket Authentication?**
-   - How to authenticate Socket.IO connections?
-   - Recommendation: JWT in connection handshake (FeathersJS built-in)
+5. **Multi-org support?**
+   - Can users belong to multiple orgs?
+   - Recommendation: Yes (like GitHub)
 
 ---
 
-## Next Steps
+## Related Documents
 
-### Immediate (V2 Prep)
-
-1. **Design users table schema** - Add to Drizzle schema (conditional)
-2. **Add FeathersJS authentication** - Install `@feathersjs/authentication`
-3. **Implement anonymous strategy** - Default for local mode
-4. **Add CLI auth commands** - `agor auth init/login/create-user`
-
-### Short-term (V2 Implementation)
-
-1. **Build authentication UI** - Login form in React
-2. **Token management** - Store JWT in `~/.agor/auth.json`
-3. **Conditional hooks** - Check `requireAuth` config before enforcing
-4. **Documentation** - Guide for enabling authentication
-
-### Long-term (V3 Planning)
-
-1. **OAuth research** - Test GitHub/Google strategies
-2. **CASL integration** - Prototype permission system
-3. **Multi-tenancy design** - Organization data model
-4. **Cloud deployment guide** - Turso/Supabase setup
+- [../concepts/auth.md](../concepts/auth.md) - Current authentication implementation
+- [../concepts/architecture.md](../concepts/architecture.md) - System architecture
+- [../concepts/models.md](../concepts/models.md) - Data models
 
 ---
 
 ## References
 
-**Internal:**
-
-- [[architecture]] - System architecture
-- [[models]] - Data models
-- [[core]] - Core primitives
-
 **External:**
 
-- FeathersJS Authentication: https://feathersjs.com/api/authentication/service
-- FeathersJS Anonymous Auth: https://docs.feathersjs.com/cookbook/authentication/anonymous.html
-- CASL (Authorization): https://casl.js.org/
-- Better Auth: https://www.better-auth.com/
-- Drizzle ORM: https://orm.drizzle.team/
-
----
-
-## Summary
-
-**Recommended Approach:**
-
-1. **V1 (Current):** No authentication (trust-based local)
-2. **V2 (Next):** FeathersJS authentication with anonymous fallback
-3. **V3 (Future):** OAuth + RBAC with CASL
-
-**Key Principles:**
-
-- **Local-first:** Default to anonymous mode (zero config)
-- **Progressive:** Add auth only when needed
-- **Flexible:** Support OAuth, SAML, custom providers
-- **Owned:** Data stays under user control
-
-**Implementation Priority:**
-
-1. Phase 2 (Optional Auth) - 2-3 weeks
-2. Documentation - 1 week
-3. Phase 3 (Cloud) - 4-6 weeks (future milestone)
+- [FeathersJS OAuth](https://feathersjs.com/api/authentication/oauth)
+- [CASL (Authorization)](https://casl.js.org/)
+- [Turso (Database)](https://turso.tech/)
+- [Better Auth](https://www.better-auth.com/) - Alternative auth library
