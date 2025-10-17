@@ -1,6 +1,10 @@
 /**
  * React hook for tracking active users and their cursor positions
  *
+ * Maintains two separate maps with different timeouts:
+ * - presenceMap: 5 minute timeout for facepile (shows users even when multitasking)
+ * - cursorMap: 5 second timeout for cursor rendering (hides stale cursors quickly)
+ *
  * Subscribes to cursor-moved events and maintains active user state for Facepile
  */
 
@@ -30,14 +34,21 @@ interface UsePresenceResult {
 export function usePresence(options: UsePresenceOptions): UsePresenceResult {
   const { client, boardId, users, enabled = true } = options;
 
-  // Map of userId → cursor state
+  // Separate maps for different timeouts:
+  // - cursorMap: for rendering cursors (5 second timeout)
+  // - presenceMap: for facepile (5 minute timeout)
   const [cursorMap, setCursorMap] = useState<
+    Map<string, { x: number; y: number; timestamp: number }>
+  >(new Map());
+
+  const [presenceMap, setPresenceMap] = useState<
     Map<string, { x: number; y: number; timestamp: number }>
   >(new Map());
 
   useEffect(() => {
     if (!enabled || !client?.io || !boardId) {
       setCursorMap(new Map());
+      setPresenceMap(new Map());
       return;
     }
 
@@ -46,6 +57,13 @@ export function usePresence(options: UsePresenceOptions): UsePresenceResult {
       // Only track cursors for this board
       if (event.boardId !== boardId) return;
 
+      const updateData = {
+        x: event.x,
+        y: event.y,
+        timestamp: event.timestamp,
+      };
+
+      // Update cursor map (for rendering cursors)
       setCursorMap(prev => {
         const next = new Map(prev);
         const existing = prev.get(event.userId);
@@ -55,11 +73,21 @@ export function usePresence(options: UsePresenceOptions): UsePresenceResult {
           return prev; // Reject stale update
         }
 
-        next.set(event.userId, {
-          x: event.x,
-          y: event.y,
-          timestamp: event.timestamp,
-        });
+        next.set(event.userId, updateData);
+        return next;
+      });
+
+      // Update presence map (for facepile)
+      setPresenceMap(prev => {
+        const next = new Map(prev);
+        const existing = prev.get(event.userId);
+
+        // Only update if this event is newer than the existing one
+        if (existing && event.timestamp < existing.timestamp) {
+          return prev; // Reject stale update
+        }
+
+        next.set(event.userId, updateData);
         return next;
       });
     };
@@ -73,14 +101,20 @@ export function usePresence(options: UsePresenceOptions): UsePresenceResult {
         next.delete(event.userId);
         return next;
       });
+
+      setPresenceMap(prev => {
+        const next = new Map(prev);
+        next.delete(event.userId);
+        return next;
+      });
     };
 
     // Subscribe to WebSocket events
     client.io.on('cursor-moved', handleCursorMoved);
     client.io.on('cursor-left', handleCursorLeft);
 
-    // Cleanup stale cursors every 5 seconds
-    const cleanupInterval = setInterval(() => {
+    // Cleanup stale cursors every 5 seconds (for cursor rendering)
+    const cursorCleanupInterval = setInterval(() => {
       const now = Date.now();
       setCursorMap(prev => {
         const next = new Map(prev);
@@ -97,15 +131,36 @@ export function usePresence(options: UsePresenceOptions): UsePresenceResult {
       });
     }, 5000);
 
+    // Cleanup stale presence every 30 seconds (for facepile)
+    const presenceCleanupInterval = setInterval(() => {
+      const now = Date.now();
+      setPresenceMap(prev => {
+        const next = new Map(prev);
+        let hasChanges = false;
+
+        for (const [userId, cursor] of next.entries()) {
+          if (now - cursor.timestamp > PRESENCE_CONFIG.ACTIVE_USER_TIMEOUT_MS) {
+            next.delete(userId);
+            hasChanges = true;
+          }
+        }
+
+        return hasChanges ? next : prev;
+      });
+    }, 30000);
+
     // Cleanup
     return () => {
       client.io.off('cursor-moved', handleCursorMoved);
       client.io.off('cursor-left', handleCursorLeft);
-      clearInterval(cleanupInterval);
+      clearInterval(cursorCleanupInterval);
+      clearInterval(presenceCleanupInterval);
     };
   }, [client, boardId, enabled]);
 
-  // Derive active users and remote cursors from cursor map
+  // Derive active users and remote cursors from separate maps
+  // - activeUsers from presenceMap (5 minute timeout for facepile)
+  // - remoteCursors from cursorMap (5 second timeout for cursor rendering)
   // Memoized to prevent unnecessary re-renders
   const { activeUsers, remoteCursors } = useMemo(() => {
     const activeUsers: ActiveUser[] = [];
@@ -114,28 +169,26 @@ export function usePresence(options: UsePresenceOptions): UsePresenceResult {
       { x: number; y: number; user: User; timestamp: number }
     >();
 
-    const now = Date.now();
-
-    for (const [userId, cursor] of cursorMap.entries()) {
-      // Find user details
+    // Build active users from presenceMap (longer timeout for facepile)
+    for (const [userId, presence] of presenceMap.entries()) {
       const user = users.find(u => u.user_id === userId);
-      if (!user) continue; // Skip if user not found
+      if (!user) continue;
 
-      // Check if user is still active (within timeout)
-      const isActive = now - cursor.timestamp < PRESENCE_CONFIG.ACTIVE_USER_TIMEOUT_MS;
-      if (!isActive) continue;
-
-      // Add to active users
       activeUsers.push({
         user,
-        lastSeen: cursor.timestamp,
+        lastSeen: presence.timestamp,
         cursor: {
-          x: cursor.x,
-          y: cursor.y,
+          x: presence.x,
+          y: presence.y,
         },
       });
+    }
 
-      // Add to remote cursors map
+    // Build remote cursors from cursorMap (shorter timeout for cursor rendering)
+    for (const [userId, cursor] of cursorMap.entries()) {
+      const user = users.find(u => u.user_id === userId);
+      if (!user) continue;
+
       remoteCursors.set(userId, {
         x: cursor.x,
         y: cursor.y,
@@ -148,7 +201,7 @@ export function usePresence(options: UsePresenceOptions): UsePresenceResult {
       activeUsers,
       remoteCursors,
     };
-  }, [cursorMap, users]);
+  }, [presenceMap, cursorMap, users]);
 
   return {
     activeUsers,
