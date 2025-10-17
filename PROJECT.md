@@ -129,3 +129,4 @@ See [context/explorations/](context/explorations/) for detailed designs:
 - [ ] **`@`-triggered autocomplete** - mention sessions, repos, concepts
 - [ ] **Session viewers** - mini avatar badges on cards showing who's viewing
 - [ ] **Typing indicators** - "User is typing..." in prompt input
+- [ ] rename agent->tool
