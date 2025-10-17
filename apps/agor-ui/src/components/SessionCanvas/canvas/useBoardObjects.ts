@@ -53,33 +53,48 @@ export const useBoardObjects = ({
   const getBoardObjectNodes = useCallback((): Node[] => {
     if (!board?.objects) return [];
 
-    return Object.entries(board.objects).map(([objectId, objectData]) => {
-      // Zone node
-      return {
-        id: objectId,
-        type: 'zone',
-        position: { x: objectData.x, y: objectData.y },
-        draggable: true,
-        className: eraserMode ? 'eraser-mode' : undefined,
-        style: {
-          width: objectData.width,
-          height: objectData.height,
-          zIndex: -1, // Zones behind everything
-        },
-        data: {
-          objectId,
-          label: objectData.label,
-          width: objectData.width,
-          height: objectData.height,
-          color: objectData.color,
-          status: objectData.status,
-          x: objectData.x, // Include position in data for updates
-          y: objectData.y,
-          trigger: objectData.type === 'zone' ? objectData.trigger : undefined,
-          onUpdate: handleUpdateObject,
-        },
-      };
-    });
+    return Object.entries(board.objects)
+      .filter(([, objectData]) => {
+        // Filter out objects with invalid positions (prevents NaN errors in React Flow)
+        const hasValidPosition =
+          typeof objectData.x === 'number' &&
+          typeof objectData.y === 'number' &&
+          !Number.isNaN(objectData.x) &&
+          !Number.isNaN(objectData.y);
+
+        if (!hasValidPosition) {
+          console.warn(`Skipping board object with invalid position:`, objectData);
+        }
+
+        return hasValidPosition;
+      })
+      .map(([objectId, objectData]) => {
+        // Zone node
+        return {
+          id: objectId,
+          type: 'zone',
+          position: { x: objectData.x, y: objectData.y },
+          draggable: true,
+          className: eraserMode ? 'eraser-mode' : undefined,
+          style: {
+            width: objectData.width,
+            height: objectData.height,
+            zIndex: -1, // Zones behind everything
+          },
+          data: {
+            objectId,
+            label: objectData.label,
+            width: objectData.width,
+            height: objectData.height,
+            color: objectData.color,
+            status: objectData.status,
+            x: objectData.x, // Include position in data for updates
+            y: objectData.y,
+            trigger: objectData.type === 'zone' ? objectData.trigger : undefined,
+            onUpdate: handleUpdateObject,
+          },
+        };
+      });
   }, [board?.objects, handleUpdateObject, eraserMode]);
 
   /**
