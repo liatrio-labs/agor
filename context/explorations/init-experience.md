@@ -69,11 +69,12 @@ Stored in: `~/.agor/config.json`
 
 ## Design Principles
 
-1. **Don't break existing workflows** - Users with native CLIs already set up should "just work"
-2. **Progressive disclosure** - Only ask for auth when creating a session with that tool
-3. **Clear feedback** - Show which tools are ready, which need setup
-4. **Centralized auth check** - Single source of truth for "is tool X authenticated?"
-5. **Avoid duplication** - Prefer native CLI configs over storing keys in Agor
+1. **Fast setup** - Get users to "hello world" in under 2 minutes
+2. **Informational, not interactive** - Show status and instructions, don't wizard
+3. **Don't break existing workflows** - Users with native CLIs already set up should "just work"
+4. **Clear next steps** - Obvious path from init to first session
+5. **Configure later** - Advanced setup via CLI/UI after initial success
+6. **Maintainable** - Simple code, minimal state, easy to debug
 
 ---
 
@@ -147,43 +148,49 @@ async authCheck(): Promise<AuthCheckResult> {
 
 ### 2. Enhanced `agor init` Flow
 
-**Interactive Mode:**
+**Default Mode (Informational):**
 
 ```bash
 $ agor init
 
 ✓ Created database at ~/.agor/agor.db
 ✓ Created default board
+✓ Created anonymous user
 
-Checking agentic tool authentication...
+Checking agentic tools...
+  Claude Code  ✓ Ready (via ~/.claude/config)
+  Codex        ✗ Not configured
+  Gemini       ✗ Not configured
 
-  Claude Code    ✓ Authenticated (via ~/.claude/config)
-  Codex          ✓ Authenticated (via env var OPENAI_API_KEY)
-  Gemini         ✗ Not authenticated
+To configure missing tools:
+  agor config set credentials.OPENAI_API_KEY sk-...
+  agor config set credentials.GOOGLE_API_KEY ...
 
-? Configure Gemini now? (Y/n) y
-? Enter Google API key: [input obscured]
-✓ Saved to ~/.agor/config.json
+Next Steps:
+  1. Start daemon:  cd apps/agor-daemon && pnpm dev
+  2. Start UI:      cd apps/agor-ui && pnpm dev
+  3. Open browser:  http://localhost:5173
+  4. Add repos:     Settings → Repositories
 
-All set! Run 'agor session start' to begin.
+Run 'agor --help' for more commands.
 ```
 
-**Non-Interactive Mode:**
+**With User Creation:**
 
 ```bash
-$ agor init --no-interactive
+$ agor init --user "Max" --email "max@example.com"
 
 ✓ Created database at ~/.agor/agor.db
 ✓ Created default board
-
-⚠ Some tools are not authenticated. Run 'agor config check' to see status.
+✓ Created user: Max (max@example.com)
+[... rest same as above ...]
 ```
 
 **Silent Mode:**
 
 ```bash
 $ agor init --silent
-# Just creates DB and board, no output
+# Just creates DB, board, and user - no output
 ```
 
 ---
@@ -213,120 +220,7 @@ For more info: agor config --help
 
 ---
 
-### 4. UI: Tool Availability in New Session Modal
-
-**When creating a session, show tool status:**
-
-```
-┌─ New Session ────────────────────────────────┐
-│                                               │
-│  Select Agentic Tool                          │
-│                                               │
-│  ○ Claude Code          ✓ Ready               │
-│  ○ Codex                ✓ Ready               │
-│  ○ Gemini               🔒 Auth Required       │
-│                                               │
-│  [Configure Gemini →]                         │
-│                                               │
-│  ...                                          │
-└───────────────────────────────────────────────┘
-```
-
-**Tooltip on "Auth Required" badge:**
-
-```
-Gemini is not authenticated.
-
-To configure:
-• Native CLI: gemini auth login
-• Agor config: agor config set credentials.GOOGLE_API_KEY ...
-
-After configuring, refresh this modal.
-```
-
-**Alternative: Inline Auth Setup**
-
-If user selects unauthenticated tool:
-
-```
-┌─ Configure Gemini ────────────────────────────┐
-│                                               │
-│  Gemini requires authentication.              │
-│                                               │
-│  ○ I've already configured via gemini CLI     │
-│     → Agor will use ~/.gemini/config          │
-│                                               │
-│  ○ Enter API key now                          │
-│     ┌─────────────────────────────────────┐  │
-│     │ [Google API Key]                     │  │
-│     └─────────────────────────────────────┘  │
-│     ☑ Save to Agor config                   │
-│                                               │
-│  [Cancel]  [Continue]                         │
-└───────────────────────────────────────────────┘
-```
-
----
-
-### 5. Settings Modal: Authentication Tab
-
-Add new tab to Settings modal:
-
-**"Authentication" Tab:**
-
-```
-┌─ Settings: Authentication ────────────────────────────────┐
-│                                                            │
-│  Agentic Tool Credentials                                  │
-│                                                            │
-│  Tool          Status              Action                  │
-│  ────────────  ──────────────────  ─────────────────────  │
-│  Claude Code   ✓ ~/.claude/config  [Test Connection]      │
-│  Codex         ✓ $OPENAI_API_KEY   [Test Connection]      │
-│  Gemini        ✗ Not configured     [Configure]            │
-│                                                            │
-│  ────────────────────────────────────────────────────────  │
-│                                                            │
-│  How Authentication Works:                                 │
-│                                                            │
-│  Agor checks for API keys in this order:                   │
-│  1. Native CLI config (~/.claude/config, etc.)             │
-│  2. Environment variables (ANTHROPIC_API_KEY, etc.)        │
-│  3. Agor config (~/.agor/config.json)                      │
-│                                                            │
-│  We recommend using native CLIs when possible.             │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
-```
-
-**"Configure" Button Opens Modal:**
-
-```
-┌─ Configure Gemini API Key ────────────────────┐
-│                                               │
-│  API Key                                      │
-│  ┌─────────────────────────────────────────┐ │
-│  │ ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●      │ │
-│  └─────────────────────────────────────────┘ │
-│                                               │
-│  ☑ Save to ~/.agor/config.json               │
-│                                               │
-│  [Cancel]  [Save]                             │
-└───────────────────────────────────────────────┘
-```
-
-**"Test Connection" Flow:**
-
-1. Click "Test Connection"
-2. Shows loading spinner
-3. Calls tool's actual API (e.g., Claude list models)
-4. Shows result:
-   - ✓ "Connection successful (claude-3-5-sonnet-20241022 available)"
-   - ✗ "Connection failed: Invalid API key"
-
----
-
-### 6. Runtime Auth Handling
+### 4. Runtime Auth Handling (Future - Deferred to v1.1)
 
 **When starting a session:**
 
@@ -340,7 +234,7 @@ async function createSession(params: CreateSessionInput) {
 
   if (!authResult.authenticated) {
     throw new Error(
-      `${tool.name} is not authenticated. ${authResult.setupInstructions}`
+      `${tool.name} is not authenticated. Run: agor config set credentials.${tool.credentialKey} <key>`
     );
   }
 
@@ -350,11 +244,12 @@ async function createSession(params: CreateSessionInput) {
 }
 ```
 
-**In UI:**
+**Future UI Enhancement (v1.1):**
 
-- Disable "Create Session" button if selected tool is unauthenticated
-- Show inline warning with setup instructions
-- Add "Refresh" button to re-check auth after user configures
+- Show auth status badges in NewSessionModal
+- Disable unavailable tools with helpful tooltip
+- Settings → Authentication tab for credential management
+- "Test Connection" feature to validate keys
 
 ---
 
@@ -362,39 +257,54 @@ async function createSession(params: CreateSessionInput) {
 
 ### Phase 1: Core Infrastructure (2-3 hours)
 
-- ✅ Add `authCheck()` to ITool interface
-- ✅ Implement for ClaudeTool, CodexTool, GeminiTool
-- ✅ Add `agor config check` CLI command
-- ✅ Test all three auth sources (native, env, agor)
+**Goal:** Get `authCheck()` working for status display
 
-### Phase 2: Init Enhancement (1-2 hours)
+- Add `authCheck()` to ITool interface (`packages/core/src/tools/index.ts`)
+- Implement for ClaudeTool, CodexTool, GeminiTool
+  - Check native CLI config first (preferred)
+  - Check environment variables second
+  - Check Agor config third
+  - Return status + source + instructions
+- Test all three auth sources work correctly
 
-- ✅ Add auth check to `agor init`
-- ✅ Add interactive prompt for missing keys
-- ✅ Add `--no-interactive` flag
-- ✅ Update init command help text
+**Deliverable:** All tools can report auth status accurately
 
-### Phase 3: UI Integration (2-3 hours)
+### Phase 2: Enhanced Init (1 hour)
 
-- ✅ Add auth status badges to NewSessionModal
-- ✅ Add tooltips with setup instructions
-- ✅ Disable unavailable tools
-- ✅ Add refresh mechanism after auth setup
+**Goal:** Show auth status and clear next steps in `agor init`
 
-### Phase 4: Settings UI (2-3 hours)
+- Update `agor init` command (`apps/agor-cli/src/commands/init.ts`)
+  - Create anonymous user by default
+  - Add `--user` and `--email` flags for named users
+  - After DB/board creation, check all tools via `authCheck()`
+  - Display status table (tool name, status, source)
+  - Show instructions for missing tools
+  - Show clear "Next Steps" (daemon, UI, repos)
+- Add `--silent` flag for CI/automation
+- Update help text and examples
 
-- ✅ Add "Authentication" tab to SettingsModal
-- ✅ Show all tools with status
-- ✅ Add "Test Connection" feature
-- ✅ Add configure modal for entering keys
+**Deliverable:** Fast, informative init experience
 
-### Phase 5: Documentation (1 hour)
+### Phase 3: Optional - CLI Config Command (30 min)
 
-- ✅ Update README with auth setup instructions
-- ✅ Add troubleshooting guide
-- ✅ Document all three auth methods
+**Goal:** Add `agor config check` for manual status checking
 
-**Total:** 8-12 hours
+- Create `config/check.ts` command
+- Shows same status table as init
+- Useful for troubleshooting
+
+**Deliverable:** Standalone auth status checker
+
+### Phase 4+: Deferred to v1.1
+
+**Future enhancements (post-launch):**
+
+- Settings → Authentication tab UI
+- NewSessionModal auth status badges
+- Test Connection feature
+- Interactive auth setup in UI
+
+**Total for Launch:** 3-4 hours
 
 ---
 
@@ -470,11 +380,12 @@ async function createSession(params: CreateSessionInput) {
 **Flow:**
 
 1. `pnpm install && agor init`
-2. Init shows all tools unauthenticated
-3. Prompts: "Configure Claude Code now? (Y/n)"
-4. User enters API key
-5. Saved to `~/.agor/config.json`
-6. **Result:** Guided setup ✅
+2. Init shows all tools as "Not configured"
+3. Shows clear instructions: `agor config set credentials.ANTHROPIC_API_KEY ...`
+4. User runs config commands to add keys
+5. Starts daemon and UI
+6. Creates session successfully
+7. **Result:** Clear path to success ✅
 
 ### Story 3: Adding Second Tool Later
 
@@ -483,25 +394,24 @@ async function createSession(params: CreateSessionInput) {
 **Flow:**
 
 1. Already using Agor with Claude
-2. Opens Settings → Authentication tab
-3. Clicks "Configure" on Gemini
-4. Enters API key
-5. Returns to New Session modal
-6. Gemini now shows "✓ Ready"
-7. **Result:** Self-service tool addition ✅
+2. Runs `agor config check` to see status
+3. Sees Gemini not configured
+4. Runs `agor config set credentials.GOOGLE_API_KEY ...`
+5. Creates Gemini session in UI
+6. **Result:** Self-service tool addition ✅
 
-### Story 4: API Key Rotation
+### Story 4: Troubleshooting Auth
 
-**Persona:** Enterprise user, monthly key rotation
+**Persona:** User's API key stopped working
 
 **Flow:**
 
-1. Claude session fails: "Invalid API key"
-2. Opens Settings → Authentication
-3. Clicks "Configure" on Claude Code
-4. Enters new key
-5. Clicks "Test Connection" → ✓ Success
-6. **Result:** Easy key updates ✅
+1. Session creation fails with auth error
+2. Runs `agor config check` to diagnose
+3. Sees which tools are ready vs not
+4. Updates key via `agor config set`
+5. Creates session successfully
+6. **Result:** Easy troubleshooting ✅
 
 ---
 
