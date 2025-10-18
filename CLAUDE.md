@@ -4,45 +4,66 @@ This file provides guidance to Claude Code when working with the Agor codebase.
 
 ## Project Overview
 
-**Agor** is an agent orchestration platform for AI-assisted development. It provides a unified interface to coordinate multiple AI coding agents (Claude Code, Cursor, Codex, Gemini), visualize session trees, and capture knowledge automatically.
+**Agor** — Next-gen agent orchestration for AI-assisted development.
 
-**Current Status:** Phase 2 Complete - Multi-user foundation with authentication, real-time sync, and MCP server support
+_The multiplayer, spatial layer that connects Claude Code, Codex, Gemini, and any agentic coding tool into one unified workspace._
 
-**Key Insight:** Context engineering is about managing sessions, tasks, and concepts as first-class composable primitives stored in a session tree.
+A platform for **real-time, multiplayer agentic development**. Visualize, coordinate, and automate your AI workflows across tools. Agor turns every AI session into a composable, inspectable, and reusable building block.
+
+**Current Status:** Phase 2 Complete - Multiplayer foundation with real-time collaboration, zones, and MCP support
+
+**For full vision and core primitives, see `context/concepts/core.md`**
 
 ## Architecture Documentation
 
-All architectural documentation lives in `context/`. **Start with `context/README.md`** for a full index, then read relevant docs before making changes:
+All architectural documentation lives in `context/`. **Start with `context/README.md`** for a complete index of all available concepts and explorations.
 
-### Core Concepts (Start Here)
+### Essential Reading (Start Here)
 
-- **`context/concepts/core.md`** - Five core primitives (Session, Task, Report, Worktree, Concept), vision, core insights
+Before making changes, read these core concepts:
+
+- **`context/concepts/core.md`** - Vision, five primitives (Session, Task, Report, Worktree, Concept), and what makes Agor different
 - **`context/concepts/models.md`** - Canonical data model definitions and relationships
 - **`context/concepts/architecture.md`** - System design, storage structure, and component interactions
-- **`context/concepts/id-management.md`** - UUIDv7 implementation, short IDs, and branded types
-- **`context/concepts/design.md`** - UI/UX standards and component patterns (for agor-ui work)
-- **`context/concepts/frontend-guidelines.md`** - React/Ant Design patterns, token-based styling, WebSocket integration
-- **`context/concepts/multiplayer.md`** - Real-time collaboration, facepile, cursor swarm, presence indicators
-- **`context/concepts/board-objects.md`** - Board layout system, zones, session pinning
-- **`context/concepts/mcp-integration.md`** - MCP server management (Phase 1-2 complete)
+
+### By Domain
+
+**Identity & Data:**
+
+- `id-management.md` - UUIDv7 implementation, short IDs, and branded types
+- `models.md` - Canonical data models and relationships
+
+**UI/UX & Frontend:**
+
+- `design.md` - UI/UX standards and component patterns
+- `frontend-guidelines.md` - React/Ant Design patterns, token-based styling, WebSocket integration
+- `conversation-ui.md` - Task-centric conversation UI, universal message schema
+- `tool-blocks.md` - Advanced tool visualization, semantic grouping, file impact graphs
+- `multiplayer.md` - Real-time collaboration, facepile, cursor swarm, presence indicators
+- `board-objects.md` - Board layout system, zones, session pinning
+
+**Backend & Integration:**
+
+- `architecture.md` - System design, storage structure, data flow
+- `websockets.md` - Real-time communication with FeathersJS/Socket.io
+- `auth.md` - Authentication & authorization, anonymous-first, JWT/Local strategies
+- `agent-integration.md` - Claude Agent SDK integration, session continuity, live execution
+- `mcp-integration.md` - MCP server management, CRUD UI/CLI, session-level selection
+
+**AI & Enrichment:**
+
+- `llm-enrichment.md` - AI-powered session analysis, summaries, pattern detection, quality insights
 
 ### Explorations (WIP/Future)
 
-For deeper dives into future features and design decisions, see `context/explorations/`:
-
-**Future Features:**
+Experimental designs in `context/explorations/` - read these for future features:
 
 - `worktree-ux-design.md` - Git worktree UI/UX design
-- `native-cli-feature-gaps.md` - Feature comparison between native agent CLIs and SDK capabilities
-
-**Orchestration & Coordination:**
-
-- `subtask-orchestration.md` - Multi-agent task coordination and getting agents to spawn Agor-tracked subtasks
-- `async-jobs.md` - Background job processing, queuing strategies, and long-running task management
-
-**Distribution:**
-
-- `single-package.md` - Distribution strategy (npm packages → bundled CLI → desktop app)
+- `subtask-orchestration.md` - Multi-agent task coordination
+- `async-jobs.md` - Background job processing and queuing
+- `single-package.md` - Distribution strategy (bundled CLI + daemon + UI)
+- `docs-website.md` - Documentation website with Nextra
+- `native-cli-feature-gaps.md` - Feature comparison between native CLIs and SDKs
 
 ## Project Structure
 
