@@ -49,8 +49,16 @@ if [ ! -d ~/.agor ]; then
   cd /workspaces/agor/apps/agor-cli
   pnpm exec tsx bin/dev.ts init --force
 
+  # Create default admin user for playground
+  echo "👤 Creating admin user..."
+  pnpm exec tsx bin/dev.ts user create-admin
+
   echo ""
   echo "✅ Initialization complete!"
+  echo ""
+  echo "📝 Login credentials:"
+  echo "   Email:    admin@agor.live"
+  echo "   Password: admin"
   echo ""
 fi
 
