@@ -13,7 +13,12 @@ export type MessageRole = 'user' | 'assistant' | 'system';
  * Message type (from Claude transcript)
  * Distinguishes conversation messages from meta/snapshot messages
  */
-export type MessageType = 'user' | 'assistant' | 'system' | 'file-history-snapshot';
+export type MessageType =
+  | 'user'
+  | 'assistant'
+  | 'system'
+  | 'file-history-snapshot'
+  | 'permission_request';
 
 /**
  * Content block (for multi-modal messages)
@@ -30,6 +35,39 @@ export interface ToolUse {
   id: string;
   name: string;
   input: Record<string, unknown>;
+}
+
+/**
+ * Permission scope - how long a permission grant lasts
+ */
+export enum PermissionScope {
+  ONCE = 'once', // Just this one request
+  SESSION = 'session', // For this session
+  PROJECT = 'project', // For this entire project
+}
+
+/**
+ * Permission request status
+ */
+export enum PermissionStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  DENIED = 'denied',
+}
+
+/**
+ * Permission request content
+ * Used when type === 'permission_request'
+ */
+export interface PermissionRequestContent {
+  request_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  tool_use_id?: string;
+  status: PermissionStatus;
+  scope?: PermissionScope; // Set when approved
+  approved_by?: string; // User ID who approved/denied
+  approved_at?: string; // Timestamp of decision
 }
 
 /**
@@ -62,8 +100,8 @@ export interface Message {
   /** Content preview (first 200 chars for list views) */
   content_preview: string;
 
-  /** Full message content */
-  content: string | ContentBlock[];
+  /** Full message content (type depends on message type) */
+  content: string | ContentBlock[] | PermissionRequestContent;
 
   /** Tool uses in this message (for assistant messages) */
   tool_uses?: ToolUse[];

@@ -57,7 +57,7 @@ const SessionCard = ({
   const handleDelete = () => {
     modal.confirm({
       title: 'Delete Session',
-      content: `Are you sure you want to delete this session "${session.description || session.session_id}"? This action cannot be undone.`,
+      content: 'Are you sure you want to delete this session? This action cannot be undone.',
       okText: 'Delete',
       okType: 'danger',
       cancelText: 'Cancel',

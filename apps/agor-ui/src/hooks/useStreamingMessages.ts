@@ -122,12 +122,29 @@ export function useStreamingMessages(
 
       console.debug(`📡 Streaming end: ${data.message_id.substring(0, 8)}`);
 
-      // Remove from streaming buffer (full message now in DB)
+      // Mark as ended but DON'T remove yet - wait for DB 'created' event
+      // This prevents jitter where streaming message disappears before DB message appears
       setStreamingMessages(prev => {
+        const message = prev.get(data.message_id);
+        if (!message) return prev;
+
         const newMap = new Map(prev);
-        newMap.delete(data.message_id);
+        newMap.set(data.message_id, {
+          ...message,
+          isStreaming: false, // Mark as complete but keep content visible
+        });
         return newMap;
       });
+
+      // Safety: Remove after 1 second if DB event doesn't arrive
+      // This handles edge cases where 'created' event might be missed
+      setTimeout(() => {
+        setStreamingMessages(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(data.message_id);
+          return newMap;
+        });
+      }, 1000);
     };
 
     // Handler for streaming:error
@@ -153,6 +170,23 @@ export function useStreamingMessages(
       });
     };
 
+    // Handler for message created (remove from streaming when persisted to DB)
+    const handleMessageCreated = (message: any) => {
+      // Only handle messages for this session
+      if (sessionId && message.session_id !== sessionId) {
+        return;
+      }
+
+      console.debug(`📡 Message created in DB: ${message.message_id.substring(0, 8)} - removing from streaming buffer`);
+
+      // Remove from streaming map now that it's in the DB
+      setStreamingMessages(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(message.message_id);
+        return newMap;
+      });
+    };
+
     // Register event listeners
     // biome-ignore lint/suspicious/noExplicitAny: FeathersJS emit types are not strict
     messagesService.on('streaming:start', handleStreamingStart as any);
@@ -162,6 +196,8 @@ export function useStreamingMessages(
     messagesService.on('streaming:end', handleStreamingEnd as any);
     // biome-ignore lint/suspicious/noExplicitAny: FeathersJS emit types are not strict
     messagesService.on('streaming:error', handleStreamingError as any);
+    // biome-ignore lint/suspicious/noExplicitAny: FeathersJS emit types are not strict
+    messagesService.on('created', handleMessageCreated as any);
 
     // Cleanup on unmount or client change
     return () => {
@@ -173,6 +209,8 @@ export function useStreamingMessages(
       messagesService.removeListener('streaming:end', handleStreamingEnd as any);
       // biome-ignore lint/suspicious/noExplicitAny: FeathersJS emit types are not strict
       messagesService.removeListener('streaming:error', handleStreamingError as any);
+      // biome-ignore lint/suspicious/noExplicitAny: FeathersJS emit types are not strict
+      messagesService.removeListener('created', handleMessageCreated as any);
     };
   }, [client, sessionId]);
 

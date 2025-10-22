@@ -1,10 +1,14 @@
 import type { AgorClient } from '@agor/core/api';
 import type {
+  Board,
   BoardID,
   CreateUserInput,
   MCPServer,
   PermissionMode,
+  PermissionScope,
   Repo,
+  Session,
+  Task,
   UpdateUserInput,
   User,
   Worktree,
@@ -12,7 +16,6 @@ import type {
 import { Layout } from 'antd';
 import { useState } from 'react';
 import { usePresence } from '../../hooks/usePresence';
-import type { Board, PermissionScope, Session, Task } from '../../types';
 import { AppHeader } from '../AppHeader';
 import type { ModelConfig } from '../ModelSelector';
 

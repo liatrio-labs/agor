@@ -58,8 +58,8 @@ export class ReposService extends DrizzleService<Repo, Partial<Repo>, RepoParams
       throw new Error(`Repository '${data.slug}' already exists in database`);
     }
 
-    // Clone using git-utils (as bare repo for worktree management)
-    const result = await cloneRepo({ url: data.url, bare: true });
+    // Clone using git-utils (normal clone - worktrees need working files)
+    const result = await cloneRepo({ url: data.url, bare: false });
 
     // Create database record
     return this.create(
@@ -105,10 +105,15 @@ export class ReposService extends DrizzleService<Repo, Partial<Repo>, RepoParams
 
     // Get all existing worktrees to auto-assign unique ID
     const worktreesService = this.app.service('worktrees');
-    const existingWorktrees = (await worktreesService.find({
+    const worktreesResult = await worktreesService.find({
       query: { $limit: 1000 },
       paginate: false,
-    })) as unknown as Worktree[];
+    });
+
+    // Handle both array and paginated response formats
+    const existingWorktrees = (
+      Array.isArray(worktreesResult) ? worktreesResult : worktreesResult.data
+    ) as Worktree[];
 
     const worktreeUniqueId = autoAssignWorktreeUniqueId(existingWorktrees);
 

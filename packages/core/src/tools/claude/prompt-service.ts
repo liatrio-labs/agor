@@ -20,10 +20,12 @@ import type { SessionMCPServerRepository } from '../../db/repositories/session-m
 import type { SessionRepository } from '../../db/repositories/sessions';
 import type { WorktreeRepository } from '../../db/repositories/worktrees';
 import { generateId } from '../../lib/ids';
+import { validateDirectory } from '../../lib/validation';
 import type { PermissionService } from '../../permissions/permission-service';
 import type { MCPServersConfig, SessionID, TaskID } from '../../types';
-import { TaskStatus } from '../../types';
+import { TaskStatus, PermissionStatus } from '../../types';
 import type { SessionsService, TasksService } from './claude-tool';
+import { SDKMessageProcessor } from './message-processor';
 import { DEFAULT_CLAUDE_MODEL } from './models';
 
 /**
@@ -91,7 +93,7 @@ export class ClaudePromptService {
   private stopRequested = new Map<SessionID, boolean>();
 
   constructor(
-    _messagesRepo: MessagesRepository,
+    private messagesRepo: MessagesRepository,
     private sessionsRepo: SessionRepository,
     private apiKey?: string,
     private sessionMCPRepo?: SessionMCPServerRepository,
@@ -99,7 +101,8 @@ export class ClaudePromptService {
     private permissionService?: PermissionService,
     private tasksService?: TasksService,
     private sessionsService?: SessionsService, // FeathersJS Sessions service for WebSocket broadcasting
-    private worktreesRepo?: WorktreeRepository
+    private worktreesRepo?: WorktreeRepository,
+    private messagesService?: import('./claude-tool').MessagesService // FeathersJS Messages service for creating permission requests
   ) {
     // No client initialization needed - Agent SDK is stateless
   }
@@ -138,37 +141,54 @@ export class ClaudePromptService {
         const requestId = generateId();
         const timestamp = new Date().toISOString();
 
-        // Update task status to 'awaiting_permission' via FeathersJS service (emits WebSocket)
-        console.log(`🔒 Updating task ${taskId} to awaiting_permission`, {
-          tool_name: input.tool_name,
+        // Get current message index for this session
+        const existingMessages = await this.messagesRepo.findBySessionId(sessionId);
+        const nextIndex = existingMessages.length;
+
+        // Create permission request message
+        console.log(`🔒 Creating permission request message for ${input.tool_name}`, {
           request_id: requestId,
+          task_id: taskId,
+          index: nextIndex,
         });
+
+        const permissionMessage: import('@agor/core/types').Message = {
+          message_id: generateId() as import('@agor/core/types').MessageID,
+          session_id: sessionId,
+          task_id: taskId,
+          type: 'permission_request',
+          role: 'system',
+          index: nextIndex,
+          timestamp,
+          content_preview: `Permission required: ${input.tool_name}`,
+          content: {
+            request_id: requestId,
+            tool_name: input.tool_name,
+            tool_input: input.tool_input as Record<string, unknown>,
+            tool_use_id: toolUseID,
+            status: PermissionStatus.PENDING,
+          },
+        };
+
+        try {
+          if (this.messagesService) {
+            await this.messagesService.create(permissionMessage);
+            console.log(`✅ Permission request message created successfully`);
+          }
+        } catch (createError) {
+          console.error(`❌ CRITICAL: Failed to create permission request message:`, createError);
+          throw createError;
+        }
+
+        // Update task status to 'awaiting_permission'
         try {
           await this.tasksService.patch(taskId, {
             status: TaskStatus.AWAITING_PERMISSION,
-            permission_request: {
-              request_id: requestId,
-              tool_name: input.tool_name,
-              tool_input: input.tool_input as Record<string, unknown>,
-              tool_use_id: toolUseID,
-              requested_at: timestamp,
-            },
           });
-          console.log(`✅ Task ${taskId} updated to awaiting_permission successfully`);
+          console.log(`✅ Task ${taskId} updated to awaiting_permission`);
         } catch (patchError) {
           console.error(`❌ CRITICAL: Failed to patch task ${taskId}:`, patchError);
-          console.error(`Task data that failed:`, {
-            taskId,
-            status: TaskStatus.AWAITING_PERMISSION,
-            permission_request: {
-              request_id: requestId,
-              tool_name: input.tool_name,
-              tool_input: input.tool_input,
-              tool_use_id: toolUseID,
-              requested_at: timestamp,
-            },
-          });
-          throw patchError; // Re-throw so outer catch can handle it
+          throw patchError;
         }
 
         // Emit WebSocket event for UI (broadcasts to ALL viewers)
@@ -188,17 +208,23 @@ export class ClaudePromptService {
           options.signal
         );
 
-        // Update task with approval info and resume status via FeathersJS service
-        // IMPORTANT: Must send full permission_request object, not dot notation
-        // Dot notation works in DB but doesn't broadcast properly via WebSocket
-        const currentTask = await this.tasksService.get(taskId);
+        // Update permission request message with approval/denial
+        if (this.messagesService) {
+          await this.messagesService.patch(permissionMessage.message_id, {
+            content: {
+              ...permissionMessage.content,
+              status: decision.allow ? PermissionStatus.APPROVED : PermissionStatus.DENIED,
+              scope: decision.remember ? decision.scope : undefined,
+              approved_by: decision.decidedBy,
+              approved_at: new Date().toISOString(),
+            },
+          });
+          console.log(`✅ Permission request message updated: ${decision.allow ? 'approved' : 'denied'}`);
+        }
+
+        // Update task status
         await this.tasksService.patch(taskId, {
           status: decision.allow ? TaskStatus.RUNNING : TaskStatus.FAILED,
-          permission_request: {
-            ...currentTask.permission_request,
-            approved_by: decision.decidedBy,
-            approved_at: new Date().toISOString(),
-          },
         });
 
         // Persist decision if user clicked "Remember"
@@ -380,8 +406,47 @@ export class ClaudePromptService {
 
     this.logPromptStart(sessionId, prompt, cwd, resume ? session.sdk_session_id : undefined);
 
+    // Validate CWD exists before calling SDK
+    try {
+      await validateDirectory(cwd, 'Working directory');
+      // List directory contents for debugging (helps diagnose bare repo issues)
+      try {
+        const files = await fs.readdir(cwd);
+        const fileCount = files.length;
+        const hasGit = files.includes('.git');
+        const hasClaude = files.includes('.claude');
+        const hasCLAUDEmd = files.includes('CLAUDE.md');
+        console.log(
+          `✅ Working directory validated: ${cwd} (${fileCount} files/dirs${hasGit ? ', has .git' : ', NO .git!'}${hasClaude ? ', has .claude/' : ''}${hasCLAUDEmd ? ', has CLAUDE.md' : ''})`
+        );
+        if (fileCount === 0) {
+          console.warn(`⚠️  Working directory is EMPTY - worktree may be from bare repo!`);
+        } else if (!hasGit) {
+          console.warn(`⚠️  Working directory has no .git - not a valid worktree!`);
+        }
+        if (!hasCLAUDEmd && !hasClaude) {
+          console.warn(`⚠️  No CLAUDE.md or .claude/ directory found - SDK may not load properly`);
+        }
+      } catch (listError) {
+        console.warn(`⚠️  Could not list directory contents:`, listError);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Working directory validation failed: ${errorMessage}`);
+      throw new Error(
+        `${errorMessage}${
+          session.worktree_id
+            ? ` Session references worktree ${session.worktree_id} which may not be initialized.`
+            : ''
+        }`
+      );
+    }
+
     // Get Claude Code path
     const claudeCodePath = getClaudeCodePath();
+
+    // Buffer to capture stderr for better error messages
+    let stderrBuffer = '';
 
     const options: Record<string, unknown> = {
       cwd,
@@ -395,6 +460,14 @@ export class ClaudePromptService {
       includePartialMessages: ClaudePromptService.ENABLE_TOKEN_STREAMING,
       // Enable debug logging to see what's happening
       debug: true,
+      // Capture stderr to get actual error messages (not just "exit code 1")
+      stderr: (data: string) => {
+        stderrBuffer += data;
+        // Log in real-time for debugging
+        if (data.trim()) {
+          console.error(`[Claude stderr] ${data.trim()}`);
+        }
+      },
     };
 
     // Add permissionMode if provided
@@ -402,10 +475,23 @@ export class ClaudePromptService {
     // 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
     // No mapping needed - UI is responsible for showing correct options per agent type
     if (permissionMode) {
-      options.permissionMode = permissionMode;
+      // SECURITY: bypassPermissions cannot be used with root/sudo
+      // Claude Code blocks this for security reasons
+      const isRoot = process.getuid?.() === 0;
+
+      if (isRoot && permissionMode === 'bypassPermissions') {
+        console.warn(`⚠️  Running as root - bypassPermissions not allowed. Falling back to 'default' mode.`);
+        console.warn(`   This is a security restriction from Claude Code SDK.`);
+        options.permissionMode = 'default';
+      } else {
+        options.permissionMode = permissionMode;
+      }
+
+      console.log(`🔐 Permission mode: ${options.permissionMode}`);
     }
 
     // Add session-level allowed tools from our database
+    // NOTE: Always add allowedTools (even for bypassPermissions workaround)
     const sessionAllowedTools = session.permission_config?.allowedTools || [];
     if (sessionAllowedTools.length > 0) {
       options.allowedTools = sessionAllowedTools;
@@ -413,7 +499,15 @@ export class ClaudePromptService {
 
     // Add PreToolUse hook if permission service is available and taskId provided
     // This enables Agor's custom permission UI (WebSocket-based) instead of CLI prompts
-    if (this.permissionService && taskId) {
+    // IMPORTANT: Only add hook if using modes that support custom permission handling
+    // Note: effectivePermissionMode is the ACTUAL mode after root fallback (options.permissionMode)
+    const effectivePermissionMode = options.permissionMode;
+    if (
+      this.permissionService &&
+      taskId &&
+      effectivePermissionMode !== 'bypassPermissions' &&
+      effectivePermissionMode !== 'acceptEdits'
+    ) {
       options.hooks = {
         PreToolUse: [
           {
@@ -421,6 +515,7 @@ export class ClaudePromptService {
           },
         ],
       };
+      console.log(`🪝 PreToolUse hook added (permission mode: ${effectivePermissionMode})`);
     }
 
     // Add optional apiKey if provided
@@ -430,7 +525,29 @@ export class ClaudePromptService {
 
     // Add optional resume if session exists
     if (resume && session?.sdk_session_id) {
-      options.resume = session.sdk_session_id;
+      // Check if session might be stale (prevents exit code 1 errors)
+      const hoursSinceUpdate = session.last_updated
+        ? (Date.now() - new Date(session.last_updated).getTime()) / (1000 * 60 * 60)
+        : 999;
+
+      const isLikelyStale =
+        hoursSinceUpdate > 24 || // Session older than 24 hours
+        !session.worktree_id; // No worktree = can't resume properly
+
+      if (isLikelyStale) {
+        console.warn(
+          `⚠️  Resume session ${session.sdk_session_id.substring(0, 8)} appears stale (${Math.round(hoursSinceUpdate)}h old) - starting fresh`
+        );
+
+        // Clear stale session ID to prevent exit code 1
+        if (this.sessionsRepo) {
+          await this.sessionsRepo.update(sessionId, { sdk_session_id: undefined });
+        }
+        // Don't set options.resume - start fresh
+      } else {
+        options.resume = session.sdk_session_id;
+        console.log(`   Resuming SDK session: ${session.sdk_session_id.substring(0, 8)}`);
+      }
     }
 
     // Fetch and configure MCP servers for this session (hierarchical scoping)
@@ -584,16 +701,31 @@ export class ClaudePromptService {
       )
     );
 
-    const result = query({
-      prompt,
-      // biome-ignore lint/suspicious/noExplicitAny: SDK Options type doesn't include all available fields
-      options: options as any,
-    });
+    let result;
+    try {
+      result = query({
+        prompt,
+        // biome-ignore lint/suspicious/noExplicitAny: SDK Options type doesn't include all available fields
+        options: options as any,
+      });
+      console.log(`✅ query() returned AsyncGenerator successfully`);
+    } catch (syncError) {
+      // This is rare - SDK usually returns AsyncGenerator that throws later
+      console.error(`❌ CRITICAL: query() threw synchronous error (very unusual):`, syncError);
+      console.error(`   Claude Code path: ${claudeCodePath}`);
+      console.error(`   CWD: ${cwd}`);
+      console.error(`   API key set: ${this.apiKey ? 'YES (custom)' : process.env.ANTHROPIC_API_KEY ? 'YES (env)' : 'NO'}`);
+      console.error(`   Resume session: ${options.resume || 'none (fresh session)'}`);
+      throw syncError;
+    }
 
     // Store query object for potential interruption (Claude SDK has native interrupt() method)
     this.activeQueries.set(sessionId, result);
 
-    return { query: result, resolvedModel: model };
+    // Store stderr buffer getter for error reporting
+    const getStderr = () => stderrBuffer;
+
+    return { query: result, resolvedModel: model, getStderr };
   }
 
   /**
@@ -610,61 +742,6 @@ export class ClaudePromptService {
     if (agentSessionId) {
       console.log(`   Resuming session: ${agentSessionId}`);
     }
-  }
-
-  /**
-   * Process content from assistant message into content blocks
-   * @private
-   */
-  private processContentBlocks(
-    content: unknown,
-    _messageNum: number
-  ): Array<{
-    type: string;
-    text?: string;
-    id?: string;
-    name?: string;
-    input?: Record<string, unknown>;
-  }> {
-    const contentBlocks: Array<{
-      type: string;
-      text?: string;
-      id?: string;
-      name?: string;
-      input?: Record<string, unknown>;
-    }> = [];
-
-    if (typeof content === 'string') {
-      contentBlocks.push({ type: 'text', text: content });
-    } else if (Array.isArray(content)) {
-      for (const block of content) {
-        contentBlocks.push(block);
-      }
-    }
-
-    return contentBlocks;
-  }
-
-  /**
-   * Extract tool uses from content blocks
-   * @private
-   */
-  private extractToolUses(
-    contentBlocks: Array<{
-      type: string;
-      text?: string;
-      id?: string;
-      name?: string;
-      input?: Record<string, unknown>;
-    }>
-  ): Array<{ id: string; name: string; input: Record<string, unknown> }> {
-    return contentBlocks
-      .filter(block => block.type === 'tool_use')
-      .map(block => ({
-        id: block.id!,
-        name: block.name!,
-        input: block.input || {},
-      }));
   }
 
   /**
@@ -686,21 +763,48 @@ export class ClaudePromptService {
     taskId?: TaskID,
     permissionMode?: PermissionMode,
     _chunkCallback?: (messageId: string, chunk: string) => void
-  ): AsyncGenerator<{
-    type: 'partial' | 'complete';
-    textChunk?: string; // For partial streaming events
-    content?: Array<{
-      type: string;
-      text?: string;
-      id?: string;
-      name?: string;
-      input?: Record<string, unknown>;
-    }>;
-    toolUses?: Array<{ id: string; name: string; input: Record<string, unknown> }>;
-    agentSessionId?: string;
-    resolvedModel?: string;
-  }> {
-    const { query: result, resolvedModel } = await this.setupQuery(
+  ): AsyncGenerator<
+    | {
+        type: 'partial';
+        textChunk: string;
+        agentSessionId?: string;
+        resolvedModel?: string;
+      }
+    | {
+        type: 'complete';
+        role?: 'assistant' | 'user';
+        content: Array<{
+          type: string;
+          text?: string;
+          id?: string;
+          name?: string;
+          input?: Record<string, unknown>;
+        }>;
+        toolUses?: Array<{ id: string; name: string; input: Record<string, unknown> }>;
+        agentSessionId?: string;
+        resolvedModel?: string;
+      }
+    | {
+        type: 'tool_start';
+        toolName: string;
+        toolUseId: string;
+        agentSessionId?: string;
+      }
+    | {
+        type: 'tool_complete';
+        toolUseId: string;
+        agentSessionId?: string;
+      }
+    | {
+        type: 'message_start';
+        agentSessionId?: string;
+      }
+    | {
+        type: 'message_complete';
+        agentSessionId?: string;
+      }
+  > {
+    const { query: result, resolvedModel, getStderr } = await this.setupQuery(
       sessionId,
       prompt,
       taskId,
@@ -708,59 +812,103 @@ export class ClaudePromptService {
       true
     );
 
-    // Collect and yield assistant messages progressively
-    let messageCount = 0;
-    let capturedAgentSessionId: string | undefined;
+    // Get session for reference (needed to check existing sdk_session_id)
+    const session = await this.sessionsRepo?.findById(sessionId);
+    const existingSdkSessionId = session?.sdk_session_id;
 
-    for await (const msg of result) {
-      messageCount++;
+    // Create message processor for this query
+    const processor = new SDKMessageProcessor({
+      sessionId,
+      existingSdkSessionId,
+      enableTokenStreaming: ClaudePromptService.ENABLE_TOKEN_STREAMING,
+      idleTimeoutMs: 30000, // 30 seconds
+    });
 
-      // Check if stop was requested (for immediate loop breaking)
-      if (this.stopRequested.get(sessionId)) {
-        console.log(
-          `🛑 Stop requested for session ${sessionId.substring(0, 8)}, breaking event loop`
-        );
-        this.stopRequested.delete(sessionId);
-        break;
-      }
+    try {
+      for await (const msg of result) {
+        // Check if stop was requested before processing message
+        if (this.stopRequested.get(sessionId)) {
+          console.log(
+            `🛑 Stop requested for session ${sessionId.substring(0, 8)}, breaking event loop`
+          );
+          this.stopRequested.delete(sessionId);
+          break;
+        }
 
-      // Capture SDK session_id from first message that has it
-      if (!capturedAgentSessionId && 'session_id' in msg && msg.session_id) {
-        capturedAgentSessionId = msg.session_id;
-      }
+        // Check for timeout
+        if (processor.hasTimedOut()) {
+          const state = processor.getState();
+          console.warn(
+            `⏱️  No assistant messages for ${Math.round((Date.now() - state.lastAssistantMessageTime) / 1000)}s - assuming conversation complete`
+          );
+          console.warn(`   SDK may not have sent 'result' message - breaking loop as safety measure`);
+          break;
+        }
 
-      // Handle partial streaming events (token-level streaming)
-      if (msg.type === 'stream_event' && ClaudePromptService.ENABLE_TOKEN_STREAMING) {
-        // biome-ignore lint/suspicious/noExplicitAny: SDK event structure is complex
-        const event = (msg as any).event;
+        // Process message through processor
+        const events = await processor.process(msg);
 
-        // Extract text from content_block_delta events
-        if (event?.type === 'content_block_delta' && event?.delta?.type === 'text_delta') {
-          const textChunk = event.delta.text;
+        // Handle each event from processor
+        for (const event of events) {
+          // Handle session ID capture
+          if (event.type === 'session_id_captured') {
+            if (this.sessionsRepo) {
+              await this.sessionsRepo.update(sessionId, {
+                sdk_session_id: event.agentSessionId,
+              });
+              console.log(`💾 Stored Agent SDK session_id in database`);
+            }
+            continue; // Don't yield this event upstream
+          }
 
-          // Yield partial chunk immediately (enables real-time streaming)
-          yield {
-            type: 'partial',
-            textChunk,
-            agentSessionId: capturedAgentSessionId,
-            resolvedModel,
-          };
+          // Handle end event (break loop)
+          if (event.type === 'end') {
+            console.log(`🏁 Conversation ended: ${event.reason}`);
+            break; // Exit for-await loop
+          }
+
+          // Handle result event (log but don't yield)
+          if (event.type === 'result') {
+            // Already logged by processor, nothing more to do
+            continue;
+          }
+
+          // Yield all other events (partial, complete, tool_start, tool_complete, etc.)
+          yield event;
+        }
+
+        // If we got an end event, break the outer loop
+        if (events.some(e => e.type === 'end')) {
+          break;
         }
       }
-      // Handle complete assistant messages
-      else if (msg.type === 'assistant') {
-        const contentBlocks = this.processContentBlocks(msg.message?.content, messageCount);
-        const toolUses = this.extractToolUses(contentBlocks);
+    } catch (error) {
+      // Clean up query reference before re-throwing
+      this.activeQueries.delete(sessionId);
 
-        // Yield complete message for database storage
-        yield {
-          type: 'complete',
-          content: contentBlocks,
-          toolUses: toolUses.length > 0 ? toolUses : undefined,
-          agentSessionId: capturedAgentSessionId,
-          resolvedModel,
-        };
+      const state = processor.getState();
+
+      // Get actual error message from stderr if available
+      const stderrOutput = getStderr();
+      const errorContext = stderrOutput
+        ? `\n\nClaude Code stderr output:\n${stderrOutput}`
+        : '';
+
+      // Enhance error with context
+      const enhancedError = new Error(
+        `Claude SDK error after ${state.messageCount} messages: ${error instanceof Error ? error.message : String(error)}${errorContext}`
+      );
+      // Preserve original stack
+      if (error instanceof Error && error.stack) {
+        enhancedError.stack = error.stack;
       }
+      console.error(`❌ SDK iteration failed:`, {
+        sessionId: sessionId.substring(0, 8),
+        messageCount: state.messageCount,
+        error: error instanceof Error ? error.message : String(error),
+        stderr: stderrOutput || '(no stderr output)',
+      });
+      throw enhancedError;
     }
 
     // Clean up query reference
@@ -780,7 +928,19 @@ export class ClaudePromptService {
    * @returns Complete assistant response with metadata
    */
   async promptSession(sessionId: SessionID, prompt: string): Promise<PromptResult> {
-    const { query: result } = await this.setupQuery(sessionId, prompt, undefined, undefined, false);
+    const { query: result, getStderr } = await this.setupQuery(sessionId, prompt, undefined, undefined, false);
+
+    // Get session for reference
+    const session = await this.sessionsRepo?.findById(sessionId);
+    const existingSdkSessionId = session?.sdk_session_id;
+
+    // Create message processor
+    const processor = new SDKMessageProcessor({
+      sessionId,
+      existingSdkSessionId,
+      enableTokenStreaming: false, // Non-streaming mode
+      idleTimeoutMs: 30000,
+    });
 
     // Collect response messages from async generator
     // IMPORTANT: Keep assistant messages SEPARATE (don't merge into one)
@@ -794,20 +954,23 @@ export class ClaudePromptService {
       }>;
       toolUses?: Array<{ id: string; name: string; input: Record<string, unknown> }>;
     }> = [];
-    let messageCount = 0;
 
     for await (const msg of result) {
-      messageCount++;
+      const events = await processor.process(msg);
 
-      if (msg.type === 'assistant') {
-        const contentBlocks = this.processContentBlocks(msg.message?.content, messageCount);
-        const toolUses = this.extractToolUses(contentBlocks);
+      for (const event of events) {
+        // Only collect complete assistant messages
+        if (event.type === 'complete' && event.role === 'assistant') {
+          assistantMessages.push({
+            content: event.content,
+            toolUses: event.toolUses,
+          });
+        }
 
-        // Add as separate assistant message
-        assistantMessages.push({
-          content: contentBlocks,
-          toolUses: toolUses.length > 0 ? toolUses : undefined,
-        });
+        // Break on end event
+        if (event.type === 'end') {
+          break;
+        }
       }
     }
 

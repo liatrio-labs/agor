@@ -26,7 +26,7 @@ export type WorktreeName = string;
 /**
  * Git repository managed by Agor
  *
- * All repositories are cloned as bare repos to ~/.agor/repos/{slug}
+ * All repositories are cloned to ~/.agor/repos/{slug}
  * and managed by Agor for worktree creation and parallel development.
  */
 export interface Repo {
@@ -62,7 +62,7 @@ export interface Repo {
   remote_url: string;
 
   /**
-   * Local path to bare repository
+   * Local path to repository
    *
    * Always: ~/.agor/repos/{slug}
    */

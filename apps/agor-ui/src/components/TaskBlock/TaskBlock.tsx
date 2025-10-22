@@ -28,14 +28,17 @@ import { Bubble } from '@ant-design/x';
 import { Avatar, Collapse, Space, Spin, Tag, Typography, theme } from 'antd';
 import type React from 'react';
 import { useMemo } from 'react';
-import type { Message, Task, User } from '../../types';
-import { TaskStatus } from '../../types';
+import { useTaskEvents } from '../../hooks/useTaskEvents';
+import { useAgorClient } from '../../hooks/useAgorClient';
+import { type Message, type Task, type User, TaskStatus } from '../../types';
+import { PermissionStatus, PermissionScope, type PermissionRequestContent } from '@agor/core/types';
 import { AgentChain } from '../AgentChain';
 import { MessageBlock } from '../MessageBlock';
 import { CreatedByTag } from '../metadata/CreatedByTag';
 import { PermissionRequestBlock } from '../PermissionRequestBlock';
 import { GitStatePill } from '../Pill';
 import { ToolIcon } from '../ToolIcon';
+import ToolExecutingIndicator from '../ToolExecutingIndicator';
 
 const { Text, Paragraph } = Typography;
 
@@ -43,8 +46,6 @@ const { Text, Paragraph } = Typography;
  * Block types for rendering
  */
 type Block = { type: 'message'; message: Message } | { type: 'agent-chain'; messages: Message[] };
-
-type PermissionScope = 'once' | 'session' | 'project';
 
 interface TaskBlockProps {
   task: Task;
@@ -105,6 +106,7 @@ function isAgentChainMessage(message: Message): boolean {
  * Group messages into blocks:
  * - Consecutive assistant messages with thoughts/tools → AgentChain
  * - User messages and assistant text responses → individual MessageBlocks
+ * - Permission requests are now just messages, rendered inline naturally
  */
 function groupMessagesIntoBlocks(messages: Message[]): Block[] {
   const blocks: Block[] = [];
@@ -145,6 +147,10 @@ export const TaskBlock: React.FC<TaskBlockProps> = ({
   onPermissionDecision,
 }) => {
   const { token } = theme.useToken();
+  const { client } = useAgorClient();
+
+  // Track real-time tool executions for this task
+  const { toolsExecuting } = useTaskEvents(client, task.task_id);
 
   // Group messages into blocks
   const blocks = useMemo(() => groupMessagesIntoBlocks(messages), [messages]);
@@ -275,9 +281,27 @@ export const TaskBlock: React.FC<TaskBlockProps> = ({
           },
           children: (
             <div style={{ paddingTop: token.sizeUnit }}>
-              {/* Render all message blocks */}
-              {blocks.map(block => {
+              {/* Render all blocks (messages and agent chains) */}
+              {blocks.map((block, blockIndex) => {
                 if (block.type === 'message') {
+                  // Find if this is a permission request and if it's the first pending one
+                  const isPermissionRequest = block.message.type === 'permission_request';
+                  let isFirstPending = false;
+
+                  if (isPermissionRequest) {
+                    const content = block.message.content as PermissionRequestContent;
+                    if (content.status === PermissionStatus.PENDING) {
+                      // Check if this is the first pending permission request
+                      isFirstPending = !blocks.slice(0, blockIndex).some(b => {
+                        if (b.type === 'message' && b.message.type === 'permission_request') {
+                          const c = b.message.content as PermissionRequestContent;
+                          return c.status === PermissionStatus.PENDING;
+                        }
+                        return false;
+                      });
+                    }
+                  }
+
                   return (
                     <MessageBlock
                       key={block.message.message_id}
@@ -286,6 +310,10 @@ export const TaskBlock: React.FC<TaskBlockProps> = ({
                       users={users}
                       currentUserId={task.created_by}
                       isTaskRunning={task.status === TaskStatus.RUNNING}
+                      sessionId={sessionId}
+                      onPermissionDecision={onPermissionDecision}
+                      isFirstPendingPermission={isFirstPending}
+                      taskId={task.task_id}
                     />
                   );
                 }
@@ -296,6 +324,13 @@ export const TaskBlock: React.FC<TaskBlockProps> = ({
                 }
                 return null;
               })}
+
+              {/* Show tool execution indicators when tools are running */}
+              {toolsExecuting.length > 0 && (
+                <div style={{ margin: `${token.sizeUnit * 1.5}px 0` }}>
+                  <ToolExecutingIndicator toolsExecuting={toolsExecuting} />
+                </div>
+              )}
 
               {/* Show typing indicator whenever task is actively running */}
               {task.status === TaskStatus.RUNNING && (
@@ -317,36 +352,6 @@ export const TaskBlock: React.FC<TaskBlockProps> = ({
                     variant="outlined"
                   />
                 </div>
-              )}
-
-              {/* Show permission request (active or historical) */}
-              {task.permission_request && (
-                <PermissionRequestBlock
-                  task={task}
-                  isActive={task.status === TaskStatus.AWAITING_PERMISSION}
-                  onApprove={(taskId, scope) => {
-                    if (task.permission_request && sessionId) {
-                      onPermissionDecision?.(
-                        sessionId,
-                        task.permission_request.request_id,
-                        taskId,
-                        true,
-                        scope
-                      );
-                    }
-                  }}
-                  onDeny={taskId => {
-                    if (task.permission_request && sessionId) {
-                      onPermissionDecision?.(
-                        sessionId,
-                        task.permission_request.request_id,
-                        taskId,
-                        false,
-                        'once' // Deny always uses 'once' scope
-                      );
-                    }
-                  }}
-                />
               )}
 
               {/* Show commit message if available */}

@@ -14,7 +14,13 @@ import { Bubble } from '@ant-design/x';
 import { Avatar, theme } from 'antd';
 import type React from 'react';
 import type { Message, User } from '../../types';
+import {
+  type PermissionRequestContent,
+  PermissionScope,
+  PermissionStatus,
+} from '@agor/core/types';
 import { MarkdownRenderer } from '../MarkdownRenderer';
+import { PermissionRequestBlock } from '../PermissionRequestBlock';
 import { ToolIcon } from '../ToolIcon';
 import { ToolUseRenderer } from '../ToolUseRenderer';
 
@@ -45,6 +51,16 @@ interface MessageBlockProps {
   currentUserId?: string;
   isTaskRunning?: boolean; // Whether the task is running (for loading state)
   agentic_tool?: string; // Agentic tool name for showing tool icon
+  sessionId?: string | null;
+  taskId?: string;
+  isFirstPendingPermission?: boolean; // For sequencing permission requests
+  onPermissionDecision?: (
+    sessionId: string,
+    requestId: string,
+    taskId: string,
+    allow: boolean,
+    scope: PermissionScope
+  ) => void;
 }
 
 export const MessageBlock: React.FC<MessageBlockProps> = ({
@@ -53,8 +69,59 @@ export const MessageBlock: React.FC<MessageBlockProps> = ({
   currentUserId,
   isTaskRunning = false,
   agentic_tool,
+  sessionId,
+  taskId,
+  isFirstPendingPermission = false,
+  onPermissionDecision,
 }) => {
   const { token } = theme.useToken();
+
+  // Handle permission request messages specially
+  if (message.type === 'permission_request') {
+    const content = message.content as PermissionRequestContent;
+    const isPending = content.status === PermissionStatus.PENDING;
+
+    // Only allow interaction with the first pending permission request (sequencing)
+    const canInteract = isPending && isFirstPendingPermission;
+
+    return (
+      <div style={{ margin: `${token.sizeUnit * 1.5}px 0` }}>
+        <PermissionRequestBlock
+          message={message}
+          content={content}
+          isActive={canInteract}
+          onApprove={
+            canInteract && onPermissionDecision && sessionId && taskId
+              ? (messageId, scope) => {
+                  onPermissionDecision(
+                    sessionId,
+                    content.request_id,
+                    taskId,
+                    true,
+                    scope
+                  );
+                }
+              : undefined
+          }
+          onDeny={
+            canInteract && onPermissionDecision && sessionId && taskId
+              ? (messageId) => {
+                  onPermissionDecision(
+                    sessionId,
+                    content.request_id,
+                    taskId,
+                    false,
+                    PermissionScope.ONCE
+                  );
+                }
+              : undefined
+          }
+          isWaiting={isPending && !isFirstPendingPermission}
+        />
+      </div>
+    );
+  }
+
   const isUser = message.role === 'user';
   // Check if message is currently streaming
   const isStreaming = 'isStreaming' in message && message.isStreaming === true;

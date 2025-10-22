@@ -249,7 +249,7 @@ export interface WorktreeInfo {
 /**
  * Create a git worktree
  *
- * @param repoPath - Path to bare repository
+ * @param repoPath - Path to repository
  * @param worktreePath - Path where worktree should be created
  * @param ref - Branch/tag/commit to checkout
  * @param createBranch - Whether to create a new branch
@@ -287,10 +287,8 @@ export async function createWorktree(
 
   if (createBranch) {
     args.push('-b', ref);
-    // Use sourceBranch as base
+    // Use sourceBranch as base (e.g., 'main' or 'origin/main')
     if (sourceBranch) {
-      // For bare repos cloned with --bare, git creates local branches directly (not remote tracking branches)
-      // So we use the branch name directly (e.g., 'main'), not 'origin/main'
       args.push(sourceBranch);
     }
   } else {

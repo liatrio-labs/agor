@@ -168,7 +168,7 @@ export const messages = sqliteTable(
 
     // Materialized for queries
     type: text('type', {
-      enum: ['user', 'assistant', 'system', 'file-history-snapshot'],
+      enum: ['user', 'assistant', 'system', 'file-history-snapshot', 'permission_request'],
     }).notNull(),
     role: text('role', {
       enum: ['user', 'assistant', 'system'],
@@ -233,7 +233,7 @@ export const boards = sqliteTable(
 /**
  * Repos table - Git repositories managed by Agor
  *
- * All repos are cloned as bare repos to ~/.agor/repos/{slug}
+ * All repos are cloned to ~/.agor/repos/{slug}
  */
 export const repos = sqliteTable(
   'repos',

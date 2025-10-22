@@ -43,6 +43,8 @@ export interface TasksService {
   get(id: string): Promise<any>;
   // biome-ignore lint/suspicious/noExplicitAny: FeathersJS service accepts partial task updates
   patch(id: string, data: Partial<any>): Promise<any>;
+  // biome-ignore lint/suspicious/noExplicitAny: FeathersJS emit types are not strict
+  emit(event: string, data: any): void;
 }
 
 /**
@@ -82,7 +84,8 @@ export class ClaudeTool implements ITool {
         permissionService,
         tasksService,
         sessionsService,
-        worktreesRepo
+        worktreesRepo,
+        messagesService
       );
     }
   }
@@ -190,7 +193,7 @@ export class ClaudeTool implements ITool {
       permissionMode
     )) {
       // Capture resolved model from first event
-      if (!resolvedModel && event.resolvedModel) {
+      if (!resolvedModel && 'resolvedModel' in event && event.resolvedModel) {
         resolvedModel = event.resolvedModel;
       }
 
@@ -198,6 +201,29 @@ export class ClaudeTool implements ITool {
       if (!capturedAgentSessionId && event.agentSessionId) {
         capturedAgentSessionId = event.agentSessionId;
         await this.captureAgentSessionId(sessionId, capturedAgentSessionId);
+      }
+
+      // Handle tool execution start
+      if (event.type === 'tool_start') {
+        if (this.tasksService && taskId) {
+          this.tasksService.emit('tool:start', {
+            task_id: taskId,
+            session_id: sessionId,
+            tool_use_id: event.toolUseId,
+            tool_name: event.toolName,
+          });
+        }
+      }
+
+      // Handle tool execution complete
+      if (event.type === 'tool_complete') {
+        if (this.tasksService && taskId) {
+          this.tasksService.emit('tool:complete', {
+            task_id: taskId,
+            session_id: sessionId,
+            tool_use_id: event.toolUseId,
+          });
+        }
       }
 
       // Handle partial streaming events (token-level chunks)
@@ -226,8 +252,8 @@ export class ClaudeTool implements ITool {
       }
       // Handle complete message (save to database)
       else if (event.type === 'complete' && event.content) {
-        // End streaming if active
-        if (currentMessageId && streamingCallbacks) {
+        // End streaming if active (only for assistant messages)
+        if (currentMessageId && streamingCallbacks && ('role' in event && event.role === 'assistant')) {
           const streamEndTime = Date.now();
           streamingCallbacks.onStreamEnd(currentMessageId);
           const totalTime = streamEndTime - streamStartTime;
@@ -237,25 +263,39 @@ export class ClaudeTool implements ITool {
           );
         }
 
-        // Use existing message ID or generate new one
-        const assistantMessageId = currentMessageId || (generateId() as MessageID);
+        // Handle based on role
+        if ('role' in event && event.role === 'assistant') {
+          // Use existing message ID or generate new one
+          const assistantMessageId = currentMessageId || (generateId() as MessageID);
 
-        // Create complete message in DB
-        await this.createAssistantMessage(
-          sessionId,
-          assistantMessageId,
-          event.content,
-          event.toolUses,
-          taskId,
-          nextIndex++,
-          resolvedModel
-        );
-        assistantMessageIds.push(assistantMessageId);
+          // Create complete assistant message in DB
+          await this.createAssistantMessage(
+            sessionId,
+            assistantMessageId,
+            event.content,
+            event.toolUses,
+            taskId,
+            nextIndex++,
+            resolvedModel
+          );
+          assistantMessageIds.push(assistantMessageId);
 
-        // Reset for next message
-        currentMessageId = null;
-        streamStartTime = Date.now();
-        firstTokenTime = null;
+          // Reset for next message
+          currentMessageId = null;
+          streamStartTime = Date.now();
+          firstTokenTime = null;
+        } else if ('role' in event && event.role === 'user') {
+          // Create user message (tool results, etc.)
+          const userMessageId = generateId() as MessageID;
+          await this.createUserMessageFromContent(
+            sessionId,
+            userMessageId,
+            event.content,
+            taskId,
+            nextIndex++
+          );
+          // Don't add to assistantMessageIds - these are user messages
+        }
       }
     }
 
@@ -266,7 +306,7 @@ export class ClaudeTool implements ITool {
   }
 
   /**
-   * Create user message in database
+   * Create user message in database (from text prompt)
    * @private
    */
   private async createUserMessage(
@@ -284,6 +324,52 @@ export class ClaudeTool implements ITool {
       timestamp: new Date().toISOString(),
       content_preview: prompt.substring(0, 200),
       content: prompt,
+      task_id: taskId,
+    };
+
+    await this.messagesService?.create(userMessage);
+    return userMessage;
+  }
+
+  /**
+   * Create user message from SDK content (tool results, etc.)
+   * @private
+   */
+  private async createUserMessageFromContent(
+    sessionId: SessionID,
+    messageId: MessageID,
+    content: Array<{
+      type: string;
+      text?: string;
+      tool_use_id?: string;
+      content?: unknown;
+      is_error?: boolean;
+    }>,
+    taskId: TaskID | undefined,
+    nextIndex: number
+  ): Promise<Message> {
+    // Extract preview from content
+    let contentPreview = '';
+    for (const block of content) {
+      if (block.type === 'text' && block.text) {
+        contentPreview = block.text.substring(0, 200);
+        break;
+      } else if (block.type === 'tool_result' && block.content) {
+        const resultText = typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
+        contentPreview = `Tool result: ${resultText.substring(0, 180)}`;
+        break;
+      }
+    }
+
+    const userMessage: Message = {
+      message_id: messageId,
+      session_id: sessionId,
+      type: 'user',
+      role: 'user',
+      index: nextIndex,
+      timestamp: new Date().toISOString(),
+      content_preview: contentPreview,
+      content: content as Message['content'], // Tool result blocks
       task_id: taskId,
     };
 
@@ -408,7 +494,7 @@ export class ClaudeTool implements ITool {
       permissionMode
     )) {
       // Capture resolved model from first event
-      if (!resolvedModel && event.resolvedModel) {
+      if (!resolvedModel && 'resolvedModel' in event && event.resolvedModel) {
         resolvedModel = event.resolvedModel;
       }
 

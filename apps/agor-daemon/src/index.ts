@@ -951,18 +951,42 @@ async function main() {
           .catch(async error => {
             console.error(`❌ Error executing prompt for task ${task.task_id}:`, error);
 
-            // Check if error is due to stale Agent SDK session
-            if (
-              error.message?.includes('Claude Code process exited with code 1') &&
-              session.sdk_session_id
-            ) {
-              console.warn(`⚠️  Detected stale Agent SDK session ${session.sdk_session_id}`);
-              console.warn(`   Clearing sdk_session_id to allow fresh session on retry`);
+            // Check if error might be due to stale/invalid Agent SDK resume session
+            // Only clear sdk_session_id if we're confident the session is stale, not just any error
+            const errorMessage = error.message || String(error);
+            const isExitCode1 = errorMessage.includes('Claude Code process exited with code 1');
+            const hasResumeSession = !!session.sdk_session_id;
 
-              // Clear the stale sdk_session_id so next prompt starts fresh
+            // Additional heuristics to detect stale session (vs other exit code 1 errors):
+            // - Error doesn't mention missing directory/file (those are config issues)
+            // - Error doesn't mention permission denied (that's a permission issue)
+            // - Error doesn't mention API key (that's an auth issue)
+            const isLikelyConfigIssue =
+              errorMessage.includes('does not exist') ||
+              errorMessage.includes('not a directory') ||
+              errorMessage.includes('Permission denied') ||
+              errorMessage.includes('ENOENT') ||
+              errorMessage.includes('API key') ||
+              errorMessage.includes('not found');
+
+            if (isExitCode1 && hasResumeSession && !isLikelyConfigIssue) {
+              // This should rarely happen now that we proactively detect stale sessions
+              // But if it does, clear it as a safety measure
+              console.warn(`⚠️  Unexpected exit code 1 with resume session ${session.sdk_session_id}`);
+              console.warn(`   Session should have been validated before SDK call - clearing as safety measure`);
+
+              // Clear the sdk_session_id so next prompt starts fresh
               await sessionsService.patch(id, {
                 sdk_session_id: undefined,
               });
+            } else if (isExitCode1 && hasResumeSession && isLikelyConfigIssue) {
+              console.error(`❌ Exit code 1 due to configuration issue:`);
+              console.error(`   ${errorMessage.substring(0, 200)}`);
+              console.error(`   NOT clearing resume session - fix the configuration issue above`);
+            } else if (isExitCode1 && !hasResumeSession) {
+              console.error(`❌ Exit code 1 on fresh session (no resume):`);
+              console.error(`   ${errorMessage.substring(0, 200)}`);
+              console.error(`   Check: CWD exists, Claude Code installed, API key valid`);
             }
 
             // Mark task as failed and set session back to idle

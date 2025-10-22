@@ -12,43 +12,50 @@ import { CheckOutlined, CloseOutlined, LockOutlined } from '@ant-design/icons';
 import { Button, Card, Descriptions, Radio, Space, Tag, Typography, theme } from 'antd';
 import type React from 'react';
 import { useState } from 'react';
-import type { Task } from '../../types';
-import { TaskStatus } from '../../types';
+import type { Message } from '../../types';
+import {
+  type PermissionRequestContent,
+  PermissionScope,
+  PermissionStatus,
+} from '@agor/core/types';
 
 const { Text, Title } = Typography;
 
-type PermissionScope = 'once' | 'session' | 'project';
-
 interface PermissionRequestBlockProps {
-  task: Task;
-  isActive: boolean; // true if awaiting decision, false if approved/denied
-  onApprove?: (taskId: string, scope: PermissionScope) => void;
-  onDeny?: (taskId: string) => void;
+  message: Message;
+  content: PermissionRequestContent;
+  isActive: boolean; // true if awaiting decision and can interact
+  isWaiting?: boolean; // true if pending but waiting for previous permission
+  onApprove?: (messageId: string, scope: PermissionScope) => void;
+  onDeny?: (messageId: string) => void;
 }
 
 export const PermissionRequestBlock: React.FC<PermissionRequestBlockProps> = ({
-  task,
+  message,
+  content,
   isActive,
+  isWaiting = false,
   onApprove,
   onDeny,
 }) => {
   const { token } = theme.useToken();
-  const [scope, setScope] = useState<PermissionScope>('once');
+  const [scope, setScope] = useState<PermissionScope>(PermissionScope.ONCE);
 
-  if (!task.permission_request) {
-    return null;
-  }
+  const { tool_name, tool_input, status, approved_by, approved_at } = content;
 
-  const { tool_name, tool_input, requested_at, approved_by, approved_at } = task.permission_request;
-
-  // Determine the state: active, approved, or denied
-  // Note: Backend sets approved_by/approved_at for BOTH approve and deny decisions
-  // We distinguish by task status: failed = denied, anything else = approved
-  const isApproved = !isActive && approved_by && task.status !== TaskStatus.FAILED;
-  const isDenied = !isActive && approved_by && task.status === TaskStatus.FAILED;
+  // Determine the state: active, approved, denied, or waiting
+  const isApproved = status === PermissionStatus.APPROVED;
+  const isDenied = status === PermissionStatus.DENIED;
 
   // State-based styling
   const getStateStyle = () => {
+    if (isWaiting) {
+      return {
+        background: 'rgba(0, 0, 0, 0.02)',
+        border: `1px solid ${token.colorBorder}`,
+        opacity: 0.7,
+      };
+    }
     if (isActive) {
       return {
         background: 'rgba(255, 193, 7, 0.05)',
@@ -78,6 +85,7 @@ export const PermissionRequestBlock: React.FC<PermissionRequestBlockProps> = ({
   };
 
   const getTitle = () => {
+    if (isWaiting) return 'Waiting for Previous Permission';
     if (isActive) return 'Permission Required';
     if (isApproved) return 'Permission Approved';
     if (isDenied) return 'Permission Denied';
@@ -165,14 +173,14 @@ export const PermissionRequestBlock: React.FC<PermissionRequestBlockProps> = ({
         )}
 
         {/* Timestamp - show only for active requests */}
-        {isActive && (
+        {isActive && message.timestamp && (
           <Text type="secondary" style={{ fontSize: 11 }}>
-            Requested at {new Date(requested_at).toLocaleString()}
+            Requested at {new Date(message.timestamp).toLocaleString()}
           </Text>
         )}
 
         {/* Action Buttons - show only when active */}
-        {isActive && (
+        {isActive && onApprove && onDeny && (
           <Space direction="vertical" size={token.sizeUnit} style={{ width: '100%' }}>
             {/* Radio group for scope selection */}
             <Radio.Group
@@ -181,9 +189,9 @@ export const PermissionRequestBlock: React.FC<PermissionRequestBlockProps> = ({
               style={{ width: '100%' }}
             >
               <Space direction="vertical" size={token.sizeUnit / 2}>
-                <Radio value="once">Allow once (this request only)</Radio>
-                <Radio value="session">Allow for this session</Radio>
-                <Radio value="project">Allow for this project</Radio>
+                <Radio value={PermissionScope.ONCE}>Allow once (this request only)</Radio>
+                <Radio value={PermissionScope.SESSION}>Allow for this session</Radio>
+                <Radio value={PermissionScope.PROJECT}>Allow for this project</Radio>
               </Space>
             </Radio.Group>
 
@@ -192,12 +200,12 @@ export const PermissionRequestBlock: React.FC<PermissionRequestBlockProps> = ({
               <Button
                 type="primary"
                 icon={<CheckOutlined />}
-                onClick={() => onApprove?.(task.task_id, scope)}
+                onClick={() => onApprove?.(message.message_id, scope)}
                 style={{ backgroundColor: token.colorSuccess }}
               >
                 Approve
               </Button>
-              <Button danger icon={<CloseOutlined />} onClick={() => onDeny?.(task.task_id)}>
+              <Button danger icon={<CloseOutlined />} onClick={() => onDeny?.(message.message_id)}>
                 Deny
               </Button>
             </Space>
