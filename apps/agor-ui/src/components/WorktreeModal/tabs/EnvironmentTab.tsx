@@ -679,7 +679,7 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                       size="small"
                       icon={isStopping ? <LoadingOutlined /> : <PoweroffOutlined />}
                       onClick={handleStop}
-                      disabled={envStatus !== 'running' || isStarting || isStopping || isRestarting}
+                      disabled={envStatus === 'stopped' || isStopping}
                       loading={isStopping}
                       danger
                     >
