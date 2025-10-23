@@ -172,10 +172,10 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
                     Cancel
                   </Button>
                 </Space.Compact>
-              ) : worktree.issue_url ? (
-                <a href={worktree.issue_url} target="_blank" rel="noopener noreferrer">
+              ) : issueUrl ? (
+                <a href={issueUrl} target="_blank" rel="noopener noreferrer">
                   <Text code style={{ fontSize: 12 }}>
-                    {worktree.issue_url}
+                    {issueUrl}
                   </Text>
                 </a>
               ) : (
@@ -220,10 +220,10 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
                     Cancel
                   </Button>
                 </Space.Compact>
-              ) : worktree.pull_request_url ? (
-                <a href={worktree.pull_request_url} target="_blank" rel="noopener noreferrer">
+              ) : prUrl ? (
+                <a href={prUrl} target="_blank" rel="noopener noreferrer">
                   <Text code style={{ fontSize: 12 }}>
-                    {worktree.pull_request_url}
+                    {prUrl}
                   </Text>
                 </a>
               ) : (
@@ -270,7 +270,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
                     </Button>
                   </Space>
                 </div>
-              ) : worktree.notes ? (
+              ) : notes ? (
                 <Paragraph
                   style={{
                     background: token.colorBgLayout,
@@ -281,7 +281,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({
                     border: `1px solid ${token.colorBorder}`,
                   }}
                 >
-                  {worktree.notes}
+                  {notes}
                 </Paragraph>
               ) : (
                 <Text type="secondary" italic>
