@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build core package
+        run: pnpm --filter @agor/core build
+
       - name: Generate CLI docs
         run: pnpm --filter @agor/docs generate
 
