@@ -1,6 +1,6 @@
 import type { Repo } from '@agor/core/types';
 import { Button, Form, Modal } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WorktreeFormFields } from '../WorktreeFormFields';
 
 export interface NewWorktreeConfig {
@@ -36,11 +36,44 @@ export const NewWorktreeModal: React.FC<NewWorktreeModalProps> = ({
 
   const selectedRepo = repos.find(r => r.repo_id === selectedRepoId);
 
+  // Remember last used repo from localStorage
+  useEffect(() => {
+    if (!open) return;
+
+    const lastRepoId = localStorage.getItem('agor-last-repo-id');
+
+    // If we have a last used repo and it still exists, use it
+    if (lastRepoId && repos.some(r => r.repo_id === lastRepoId)) {
+      form.setFieldValue('repoId', lastRepoId);
+      setSelectedRepoId(lastRepoId);
+
+      // Auto-populate source branch
+      const repo = repos.find(r => r.repo_id === lastRepoId);
+      if (repo?.default_branch) {
+        form.setFieldValue('sourceBranch', repo.default_branch);
+      }
+    }
+  }, [open, repos, form]);
+
+  const handleRepoChange = (repoId: string) => {
+    setSelectedRepoId(repoId);
+
+    // Auto-populate source branch from repo's default branch
+    const repo = repos.find(r => r.repo_id === repoId);
+    if (repo?.default_branch) {
+      form.setFieldValue('sourceBranch', repo.default_branch);
+    }
+  };
+
   const handleValuesChange = () => {
-    form
-      .validateFields()
-      .then(() => setIsFormValid(true))
-      .catch(() => setIsFormValid(false));
+    // Use setTimeout to ensure we're checking after the form state has updated
+    setTimeout(() => {
+      const values = form.getFieldsValue();
+
+      // Check if required fields are filled
+      const isValid = !!(values.repoId && values.sourceBranch && values.name);
+      setIsFormValid(isValid);
+    }, 0);
   };
 
   const handleCreate = async () => {
@@ -48,15 +81,20 @@ export const NewWorktreeModal: React.FC<NewWorktreeModalProps> = ({
 
     const config: NewWorktreeConfig = {
       repoId: values.repoId,
-      name: values.worktreeName,
-      ref: values.ref,
-      createBranch: values.createBranch || false,
+      name: values.name,
+      ref: values.name, // Use worktree name as ref (branch name)
+      createBranch: true,
       sourceBranch: values.sourceBranch || selectedRepo?.default_branch || 'main',
-      pullLatest: values.pullLatest ?? true,
+      pullLatest: true,
       issue_url: values.issue_url,
       pull_request_url: values.pull_request_url,
       board_id: currentBoardId, // Include board_id if provided
     };
+
+    // Remember last used repo
+    if (values.repoId) {
+      localStorage.setItem('agor-last-repo-id', values.repoId);
+    }
 
     onCreate(config);
     onClose();
@@ -98,7 +136,10 @@ export const NewWorktreeModal: React.FC<NewWorktreeModalProps> = ({
         <WorktreeFormFields
           repos={repos}
           selectedRepoId={selectedRepoId}
-          onRepoChange={setSelectedRepoId}
+          onRepoChange={handleRepoChange}
+          defaultBranch={selectedRepo?.default_branch || 'main'}
+          showUrlFields={true}
+          onFormChange={handleValuesChange}
         />
       </Form>
     </Modal>

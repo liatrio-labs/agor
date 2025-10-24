@@ -11,8 +11,9 @@ import {
   LinkOutlined,
   PushpinFilled,
 } from '@ant-design/icons';
-import { App, Badge, Button, Card, Collapse, Space, Spin, Tag, Typography, theme } from 'antd';
+import { Badge, Button, Card, Collapse, Space, Spin, Tag, Typography, theme } from 'antd';
 import { useState } from 'react';
+import { DeleteWorktreePopconfirm } from '../DeleteWorktreePopconfirm';
 import { CreatedByTag } from '../metadata';
 import { IssuePill, PullRequestPill } from '../Pill';
 import { ToolIcon } from '../ToolIcon';
@@ -27,7 +28,7 @@ interface WorktreeCardProps {
   currentUserId?: string;
   onTaskClick?: (taskId: string) => void;
   onSessionClick?: (sessionId: string) => void;
-  onDelete?: (worktreeId: string) => void;
+  onDelete?: (worktreeId: string, deleteFromFilesystem: boolean) => void;
   onOpenSettings?: (worktreeId: string) => void;
   onUnpin?: (worktreeId: string) => void;
   isPinned?: boolean;
@@ -52,23 +53,8 @@ const WorktreeCard = ({
   zoneColor,
   defaultExpanded = true,
 }: WorktreeCardProps) => {
-  const { modal } = App.useApp();
   const { token } = theme.useToken();
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
-
-  const handleDelete = () => {
-    modal.confirm({
-      title: 'Delete Worktree',
-      content:
-        'Are you sure you want to delete this worktree? This will also delete all associated sessions. This action cannot be undone.',
-      okText: 'Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
-      onOk: () => {
-        onDelete?.(worktree.worktree_id);
-      },
-    });
-  };
 
   const toggleSessionExpanded = (sessionId: string) => {
     setExpandedSessions(prev => {
@@ -265,17 +251,22 @@ const WorktreeCard = ({
               />
             )}
             {onDelete && (
-              <Button
-                type="text"
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={e => {
-                  e.stopPropagation();
-                  handleDelete();
-                }}
-                title="Delete worktree"
-                danger
-              />
+              <DeleteWorktreePopconfirm
+                worktree={worktree}
+                sessionCount={sessions.length}
+                onConfirm={deleteFromFilesystem =>
+                  onDelete(worktree.worktree_id, deleteFromFilesystem)
+                }
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  onClick={e => e.stopPropagation()}
+                  title="Delete worktree"
+                  danger
+                />
+              </DeleteWorktreePopconfirm>
             )}
           </div>
         </Space>
@@ -320,13 +311,6 @@ const WorktreeCard = ({
           ghost
           style={{ marginTop: 8 }}
         />
-
-        {/* Footer metadata */}
-        <div style={{ marginTop: 12 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            📁 {worktree.path}
-          </Typography.Text>
-        </div>
       </div>
     </Card>
   );

@@ -76,7 +76,7 @@ export interface AppProps {
   onCreateRepo?: (data: { url: string; slug: string }) => void;
   onUpdateRepo?: (repoId: string, updates: Partial<Repo>) => void;
   onDeleteRepo?: (repoId: string) => void;
-  onDeleteWorktree?: (worktreeId: string) => void;
+  onDeleteWorktree?: (worktreeId: string, deleteFromFilesystem: boolean) => void;
   onUpdateWorktree?: (worktreeId: string, updates: Partial<Worktree>) => void;
   onCreateWorktree?: (
     repoId: string,

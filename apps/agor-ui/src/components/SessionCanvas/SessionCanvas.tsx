@@ -49,7 +49,7 @@ interface SessionCanvasProps {
   onUpdateSessionMcpServers?: (sessionId: string, mcpServerIds: string[]) => void;
   onOpenSettings?: (sessionId: string) => void;
   onOpenWorktree?: (worktreeId: string) => void;
-  onDeleteWorktree?: (worktreeId: string) => void;
+  onDeleteWorktree?: (worktreeId: string, deleteFromFilesystem: boolean) => void;
 }
 
 interface SessionNodeData {

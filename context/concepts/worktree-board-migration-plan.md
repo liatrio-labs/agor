@@ -158,64 +158,32 @@ Features implemented:
 
 ---
 
-### Backend Services
+### Backend Services ✅ Implemented
 
-**1. Update BoardObjectsService:**
+**1. BoardObjectsService:** ✅ Implemented
 
-```typescript
-// apps/agor-daemon/src/services/board-objects.ts
+Located: `apps/agor-daemon/src/services/board-objects.ts`
 
-export class BoardObjectsService extends Service {
-  async create(data: Partial<BoardObject>) {
-    // Validate: exactly one of session_id or worktree_id
-    if (!data.session_id && !data.worktree_id) {
-      throw new BadRequest('Must specify session_id or worktree_id');
-    }
-    if (data.session_id && data.worktree_id) {
-      throw new BadRequest('Cannot specify both session_id and worktree_id');
-    }
+- ✅ Simplified to worktree-only (no session/worktree validation needed)
+- ✅ `find()` method returns all board_objects when no filter provided
+- ✅ `findByObjectId()` for single object retrieval
+- ✅ WebSocket events emitted on create/update/delete
 
-    data.object_type = data.session_id ? 'session' : 'worktree';
+**2. WorktreesService patch override:** ✅ Implemented
 
-    return super.create(data);
-  }
-}
-```
+Located: `apps/agor-daemon/src/services/worktrees.ts`
 
-**2. Add helper methods to WorktreesService:**
+- ✅ Automatic board_object management when `board_id` changes
+- ✅ Deletes old board_object when changing boards
+- ✅ Creates new board_object when assigning to board
+- ✅ Proper params passing for WebSocket event emission
+- ✅ Error handling with fallback to allow worktree update even if board_object fails
 
-```typescript
-// apps/agor-daemon/src/services/worktrees.ts
+**Implementation Notes:**
 
-export class WorktreesService extends Service {
-  async addToBoard(worktreeId: WorktreeID, boardId: BoardID) {
-    // Set worktree.board_id
-    await this.patch(worktreeId, { board_id: boardId });
-
-    // Create board_object entry (for positioning)
-    await this.app.service('board-objects').create({
-      board_id: boardId,
-      object_type: 'worktree',
-      worktree_id: worktreeId,
-      position: { x: 100, y: 100 }, // Default position
-    });
-  }
-
-  async removeFromBoard(worktreeId: WorktreeID) {
-    // Clear worktree.board_id
-    await this.patch(worktreeId, { board_id: null });
-
-    // Remove board_object entry
-    const objects = await this.app.service('board-objects').find({
-      query: { worktree_id: worktreeId },
-    });
-
-    for (const obj of objects.data) {
-      await this.app.service('board-objects').remove(obj.object_id);
-    }
-  }
-}
-```
+- Critical fix: board-objects `find()` now returns ALL objects (was returning empty)
+- This fixed worktrees disappearing on page reload
+- board_id changes are transactional with board_object lifecycle
 
 ---
 
@@ -260,39 +228,61 @@ export interface Zone {
 
 ---
 
-## Phase 3: UI Migration Path
+## Phase 1.5: Additional Features ✅ COMPLETE
 
-### Strategy: Gradual Feature Rollout
+**NewWorktreeModal:** ✅ Implemented
 
-**Week 1: Worktree Cards (Read-Only)**
+Located: `apps/agor-ui/src/components/NewWorktreeModal/NewWorktreeModal.tsx`
 
-- [ ] Implement WorktreeCard component
-- [ ] Support displaying worktrees on boards (no editing yet)
-- [ ] Users can see worktree cards alongside session cards
+- ✅ Simple worktree creation modal (without session creation)
+- ✅ Auto-assigns worktree to current board via `board_id`
+- ✅ Wired to canvas "+" button for quick worktree creation
+- ✅ Uses WorktreeFormFields for consistent UX
 
-**Week 2: Worktree Card Interactions**
+**Pill Components for Git Metadata:** ✅ Implemented
 
-- [ ] Click session in tree → Open SessionDrawer
-- [ ] Click [edit] → Open WorktreeModal
-- [ ] Expand/collapse session tree
-- [ ] Drag worktree cards (reposition)
+Located: `apps/agor-ui/src/components/Pill/Pill.tsx`
 
-**Week 3: Add to Board Functionality**
+- ✅ IssuePill - GitHub issue links with auto-extracted numbers
+- ✅ PullRequestPill - PR links with auto-extracted numbers
+- ✅ Both use `PILL_COLORS.git` (geekblue) for consistency
+- ✅ Click to open in new tab
 
-- [ ] Settings → Worktrees → "+ Add to Board" button
-- [ ] Dropdown to select target board
-- [ ] Sets worktree.board_id + creates board_object
+**WorktreeCard UX Improvements:** ✅ Implemented
 
-**Week 4: Zone Triggers for Worktrees**
+- ✅ All metadata pills on one row (CreatedBy, Issue, PR)
+- ✅ Removed path footer (cleaner layout)
+- ✅ Branch icon uses `token.colorPrimary` (theme-aware)
+- ✅ Edit/Delete buttons with proper icons
+- ✅ WorktreeModal width fixed (removed excessive 1200px width)
 
+---
+
+## Phase 2: Zone Trigger Updates (Future)
+
+**Goal:** Zones trigger worktrees (not sessions) with modal flow
+
+**Status:** Not yet started
+
+### Planned Features
+
+- [ ] Update Zone schema with trigger configuration
 - [ ] Implement ZoneTriggerModal (two-step flow)
 - [ ] Smart default session selection logic
 - [ ] Template expansion with worktree context
 
-**Week 5: Deprecation Path**
+---
 
-- [ ] Add banner: "Session cards are deprecated. Move sessions to worktrees."
-- [ ] Provide migration wizard: "Convert board to worktree-centric"
+## Phase 3: Migration & Deprecation (Future)
+
+### Strategy: Gradual Feature Rollout
+
+**Status:** Not yet started - Phase 1 covers most functionality
+
+**Remaining Work:**
+
+- [ ] Migration wizard for existing session-based boards
+- [ ] Deprecation warnings for session cards
 - [ ] Eventually remove session card support (Phase 4+)
 
 ---

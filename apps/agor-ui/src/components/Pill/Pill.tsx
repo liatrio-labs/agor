@@ -387,7 +387,7 @@ interface IssuePillProps extends BasePillProps {
 }
 
 export const IssuePill: React.FC<IssuePillProps> = ({ issueUrl, issueNumber, style }) => {
-  const displayText = issueNumber || issueUrl.split('/').pop() || 'Issue';
+  const displayText = issueNumber || issueUrl.split('/').pop() || '?';
 
   return (
     <Tag
@@ -396,7 +396,7 @@ export const IssuePill: React.FC<IssuePillProps> = ({ issueUrl, issueNumber, sty
       style={{ ...style, cursor: 'pointer' }}
       onClick={() => window.open(issueUrl, '_blank')}
     >
-      #{displayText}
+      Issue: {displayText}
     </Tag>
   );
 };
@@ -407,16 +407,16 @@ interface PullRequestPillProps extends BasePillProps {
 }
 
 export const PullRequestPill: React.FC<PullRequestPillProps> = ({ prUrl, prNumber, style }) => {
-  const displayText = prNumber || prUrl.split('/').pop() || 'PR';
+  const displayText = prNumber || prUrl.split('/').pop() || '?';
 
   return (
     <Tag
-      icon={<BranchesOutlined />}
+      icon={<GithubOutlined />}
       color={PILL_COLORS.git}
       style={{ ...style, cursor: 'pointer' }}
       onClick={() => window.open(prUrl, '_blank')}
     >
-      PR #{displayText}
+      PR: {displayText}
     </Tag>
   );
 };
