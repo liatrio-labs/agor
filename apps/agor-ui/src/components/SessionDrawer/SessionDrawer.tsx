@@ -12,6 +12,7 @@ import { TaskStatus } from '@agor/core/types';
 import {
   ApiOutlined,
   BranchesOutlined,
+  CodeOutlined,
   ForkOutlined,
   SendOutlined,
   SettingOutlined,
@@ -54,10 +55,11 @@ export type { PermissionMode };
 interface SessionDrawerProps {
   client: AgorClient | null;
   session: Session | null;
+  worktree?: Worktree | null; // Pre-selected worktree for this session
   users?: User[];
   currentUserId?: string;
   repos?: Repo[];
-  worktrees?: Worktree[];
+  worktrees?: Worktree[]; // Still needed for other potential uses
   mcpServers?: MCPServer[];
   sessionMcpServerIds?: string[];
   open: boolean;
@@ -74,12 +76,14 @@ interface SessionDrawerProps {
   ) => void;
   onOpenSettings?: (sessionId: string) => void;
   onOpenWorktree?: (worktreeId: string) => void;
+  onOpenTerminal?: (commands: string[]) => void;
   onUpdateSession?: (sessionId: string, updates: Partial<Session>) => void;
 }
 
 const SessionDrawer = ({
   client,
   session,
+  worktree = null,
   users = [],
   currentUserId,
   repos = [],
@@ -94,6 +98,7 @@ const SessionDrawer = ({
   onPermissionDecision,
   onOpenSettings,
   onOpenWorktree,
+  onOpenTerminal,
   onUpdateSession,
 }: SessionDrawerProps) => {
   const { token } = theme.useToken();
@@ -214,6 +219,9 @@ const SessionDrawer = ({
   // Check if session is currently running (disable prompts to avoid confusion)
   const isRunning = session.status === TaskStatus.RUNNING;
 
+  // Get repo from worktree (worktree is passed from parent)
+  const repo = worktree ? repos.find(r => r.repo_id === worktree.repo_id) : null;
+
   return (
     <Drawer
       title={
@@ -253,15 +261,26 @@ const SessionDrawer = ({
         </Space>
       }
       extra={
-        onOpenSettings && (
-          <Tooltip title="Session Settings">
-            <Button
-              type="text"
-              icon={<SettingOutlined />}
-              onClick={() => onOpenSettings(session.session_id)}
-            />
-          </Tooltip>
-        )
+        <Space size={4}>
+          {onOpenTerminal && worktree && (
+            <Tooltip title="Open terminal in worktree directory">
+              <Button
+                type="text"
+                icon={<CodeOutlined />}
+                onClick={() => onOpenTerminal([`cd ${worktree.path}`])}
+              />
+            </Tooltip>
+          )}
+          {onOpenSettings && (
+            <Tooltip title="Session Settings">
+              <Button
+                type="text"
+                icon={<SettingOutlined />}
+                onClick={() => onOpenSettings(session.session_id)}
+              />
+            </Tooltip>
+          )}
+        </Space>
       }
       placement="right"
       width={720}
@@ -297,37 +316,31 @@ const SessionDrawer = ({
       )}
 
       {/* Worktree Info */}
-      {(() => {
-        // Find worktree and repo from session.worktree_id
-        const worktree = worktrees.find(w => w.worktree_id === session.worktree_id);
-        const repo = worktree ? repos.find(r => r.repo_id === worktree.repo_id) : null;
-
-        return worktree ? (
-          <div style={{ marginBottom: token.sizeUnit }}>
-            <Space size={8} wrap>
-              {repo && (
-                <RepoPill
-                  repoName={repo.slug}
-                  worktreeName={worktree.name}
-                  onClick={onOpenWorktree ? () => onOpenWorktree(worktree.worktree_id) : undefined}
-                />
-              )}
-              <EnvironmentPill
-                repo={repo || ({} as Repo)}
-                worktree={worktree}
-                onEdit={
-                  onOpenWorktree
-                    ? () => {
-                        onClose(); // Close drawer first to avoid focus trap
-                        onOpenWorktree(worktree.worktree_id);
-                      }
-                    : undefined
-                }
+      {worktree && (
+        <div style={{ marginBottom: token.sizeUnit }}>
+          <Space size={8} wrap>
+            {repo && (
+              <RepoPill
+                repoName={repo.slug}
+                worktreeName={worktree.name}
+                onClick={onOpenWorktree ? () => onOpenWorktree(worktree.worktree_id) : undefined}
               />
-            </Space>
-          </div>
-        ) : null;
-      })()}
+            )}
+            <EnvironmentPill
+              repo={repo || ({} as Repo)}
+              worktree={worktree}
+              onEdit={
+                onOpenWorktree
+                  ? () => {
+                      onClose(); // Close drawer first to avoid focus trap
+                      onOpenWorktree(worktree.worktree_id);
+                    }
+                  : undefined
+              }
+            />
+          </Space>
+        </div>
+      )}
 
       {/* Concepts - TODO: Re-implement with contextFiles */}
       {/* {session.contextFiles && session.contextFiles.length > 0 && (

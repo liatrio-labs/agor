@@ -20,7 +20,19 @@ import {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './SessionCanvas.css';
-import type { AgenticTool, Board, BoardObject, Session, Task, Worktree } from '@agor/core/types';
+import type { Board, BoardObject, Session, Task, Worktree } from '@agor/core/types';
+
+// UI-only type for agent selection (different from AgenticTool which has UUIDv7 ID)
+interface AgenticToolOption {
+  id: string; // AgenticToolName as string
+  name: string;
+  icon: string;
+  installed: boolean;
+  installable?: boolean;
+  version?: string;
+  description?: string;
+}
+
 import { useCursorTracking } from '../../hooks/useCursorTracking';
 import { usePresence } from '../../hooks/usePresence';
 import SessionCard from '../SessionCard';
@@ -41,7 +53,7 @@ interface SessionCanvasProps {
   worktrees: import('@agor/core/types').Worktree[];
   boardObjects: import('@agor/core/types').BoardEntityObject[];
   currentUserId?: string;
-  availableAgents?: AgenticTool[];
+  availableAgents?: AgenticToolOption[];
   mcpServers?: MCPServer[];
   sessionMcpServerIds?: Record<string, string[]>; // Map sessionId -> mcpServerIds[]
   onSessionClick?: (sessionId: string) => void;
@@ -53,6 +65,7 @@ interface SessionCanvasProps {
   onCreateSessionForWorktree?: (worktreeId: string) => void;
   onOpenWorktree?: (worktreeId: string) => void;
   onDeleteWorktree?: (worktreeId: string, deleteFromFilesystem: boolean) => void;
+  onOpenTerminal?: (commands: string[]) => void;
 }
 
 interface SessionNodeData {
@@ -106,6 +119,7 @@ interface WorktreeNodeData {
   onCreateSession?: (worktreeId: string) => void;
   onDelete?: (worktreeId: string) => void;
   onOpenSettings?: (worktreeId: string) => void;
+  onOpenTerminal?: (commands: string[]) => void;
   onUnpin?: (worktreeId: string) => void;
   compact?: boolean;
   isPinned?: boolean;
@@ -129,6 +143,7 @@ const WorktreeNode = ({ data }: { data: WorktreeNodeData }) => {
         onCreateSession={data.onCreateSession}
         onDelete={data.onDelete}
         onOpenSettings={data.onOpenSettings}
+        onOpenTerminal={data.onOpenTerminal}
         onUnpin={data.onUnpin}
         isPinned={data.isPinned}
         zoneName={data.zoneName}
@@ -168,6 +183,7 @@ const SessionCanvas = ({
   onCreateSessionForWorktree,
   onOpenWorktree,
   onDeleteWorktree,
+  onOpenTerminal,
 }: SessionCanvasProps) => {
   // Tool state for canvas annotations
   const [activeTool, setActiveTool] = useState<'select' | 'zone' | 'eraser'>('select');
@@ -357,6 +373,7 @@ const SessionCanvas = ({
           onCreateSession: onCreateSessionForWorktree,
           onDelete: onDeleteWorktree,
           onOpenSettings: onOpenWorktree,
+          onOpenTerminal,
           onUnpin: handleUnpinWorktree,
           compact: false,
           isPinned: !!zoneId,
@@ -378,6 +395,7 @@ const SessionCanvas = ({
     onCreateSessionForWorktree,
     onDeleteWorktree,
     onOpenWorktree,
+    onOpenTerminal,
     handleUnpinWorktree,
     zoneLabels,
   ]);
@@ -731,10 +749,10 @@ const SessionCanvas = ({
 
                         // Create new root session
                         const newSession = await client.service('sessions').create({
-                          worktree_id: nodeId,
+                          worktree_id: nodeId as WorktreeID,
                           description: `Session from zone "${zoneData.label}"`,
                           status: 'idle',
-                          agent: 'claude',
+                          agentic_tool: 'claude-code',
                         });
 
                         console.log(
@@ -1324,11 +1342,21 @@ const SessionCanvas = ({
               if (sessionId === 'new') {
                 const newSession = await client.service('sessions').create({
                   worktree_id: worktreeTriggerModal.worktreeId,
-                  agentic_tool: agent || 'claude-code',
+                  agentic_tool: (agent ||
+                    'claude-code') as import('@agor/core/types').AgenticToolName,
                   description: `Session from zone "${worktreeTriggerModal.zoneName}"`,
                   status: 'idle',
-                  model_config: modelConfig,
-                  permission_mode: permissionMode,
+                  model_config: modelConfig
+                    ? {
+                        ...modelConfig,
+                        updated_at: new Date().toISOString(),
+                      }
+                    : undefined,
+                  permission_config: permissionMode
+                    ? {
+                        mode: permissionMode,
+                      }
+                    : undefined,
                 });
                 targetSessionId = newSession.session_id;
                 console.log(`✓ Created new session: ${targetSessionId.substring(0, 8)}`);
@@ -1352,9 +1380,9 @@ const SessionCanvas = ({
                   break;
                 }
                 case 'fork': {
-                  const forkedSession = await client
+                  const forkedSession = (await client
                     .service(`sessions/${targetSessionId}/fork`)
-                    .create({});
+                    .create({})) as Session;
                   await client.service(`sessions/${forkedSession.session_id}/prompt`).create({
                     prompt: renderedTemplate,
                   });
@@ -1364,9 +1392,9 @@ const SessionCanvas = ({
                   break;
                 }
                 case 'spawn': {
-                  const spawnedSession = await client
+                  const spawnedSession = (await client
                     .service(`sessions/${targetSessionId}/spawn`)
-                    .create({});
+                    .create({})) as Session;
                   await client.service(`sessions/${spawnedSession.session_id}/prompt`).create({
                     prompt: renderedTemplate,
                   });

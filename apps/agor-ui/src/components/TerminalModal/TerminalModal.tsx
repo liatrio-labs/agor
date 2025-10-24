@@ -1,5 +1,5 @@
 import type { AgorClient } from '@agor/core/api';
-import { Modal } from 'antd';
+import { App, Modal } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from 'xterm';
 import 'xterm/css/xterm.css';
@@ -8,22 +8,29 @@ export interface TerminalModalProps {
   open: boolean;
   onClose: () => void;
   client: AgorClient | null;
+  initialCommands?: string[]; // Commands to execute after connection
 }
 
-export const TerminalModal: React.FC<TerminalModalProps> = ({ open, onClose, client }) => {
+export const TerminalModal: React.FC<TerminalModalProps> = ({
+  open,
+  onClose,
+  client,
+  initialCommands = [],
+}) => {
+  const { modal } = App.useApp();
   const terminalDivRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const [terminalId, setTerminalId] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     if (!open || !terminalDivRef.current || !client) return;
 
     let mounted = true;
+    let currentTerminalId: string | null = null;
 
     // Create terminal instance and connect to backend
     const setupTerminal = async () => {
-      if (terminalRef.current) return; // Already created
-
       // Create xterm instance
       const terminal = new Terminal({
         fontSize: 14,
@@ -46,12 +53,26 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({ open, onClose, cli
           cols: 100,
         })) as { terminalId: string; cwd: string };
 
-        if (!mounted) return;
+        if (!mounted) {
+          // If unmounted during connection, clean up immediately
+          client.service('terminals').remove(result.terminalId).catch(console.error);
+          return;
+        }
 
+        currentTerminalId = result.terminalId;
         setTerminalId(result.terminalId);
+        setIsConnected(true);
         terminal.clear();
         terminal.writeln(`✅ Connected! Working directory: ${result.cwd}`);
         terminal.writeln('');
+
+        // Execute initial commands if provided
+        if (initialCommands.length > 0) {
+          for (const cmd of initialCommands) {
+            // Send command with carriage return to execute
+            client.service('terminals').patch(result.terminalId, { input: `${cmd}\r` });
+          }
+        }
 
         // Handle user input - send to backend
         terminal.onData(data => {
@@ -75,6 +96,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({ open, onClose, cli
         }) => {
           if (message.terminalId === result.terminalId && terminalRef.current) {
             terminalRef.current.writeln(`\r\n\r\n[Process exited with code ${message.exitCode}]`);
+            terminalRef.current.writeln('[Close and reopen terminal to start a new session]');
           }
           // biome-ignore lint/suspicious/noExplicitAny: Socket event listener type mismatch
         }) as any);
@@ -93,24 +115,49 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({ open, onClose, cli
 
     return () => {
       mounted = false;
-      // Cleanup when modal closes
-      if (terminalRef.current && !open) {
+      // Cleanup terminal instance
+      if (terminalRef.current) {
         terminalRef.current.dispose();
         terminalRef.current = null;
       }
       // Kill backend terminal session
-      if (terminalId && client) {
-        client.service('terminals').remove(terminalId).catch(console.error);
-        setTerminalId(null);
+      if (currentTerminalId) {
+        client.service('terminals').remove(currentTerminalId).catch(console.error);
       }
+      setTerminalId(null);
+      setIsConnected(false);
     };
-  }, [open, client, terminalId]);
+  }, [open, client, initialCommands]);
+
+  const handleClose = () => {
+    if (isConnected) {
+      modal.confirm({
+        title: 'Close Terminal?',
+        content: 'The terminal session and history will be lost. This cannot be undone.',
+        okText: 'Close',
+        okType: 'danger',
+        cancelText: 'Cancel',
+        onOk: () => {
+          onClose();
+        },
+      });
+    } else {
+      onClose();
+    }
+  };
 
   return (
     <Modal
-      title="Terminal"
+      title={
+        <div>
+          Terminal{' '}
+          <span style={{ fontSize: '12px', fontWeight: 'normal', opacity: 0.6 }}>
+            (ephemeral session - closes with modal)
+          </span>
+        </div>
+      }
       open={open}
-      onCancel={onClose}
+      onCancel={handleClose}
       footer={null}
       width={900}
       styles={{

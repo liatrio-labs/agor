@@ -3,6 +3,7 @@ import { TaskStatus } from '@agor/core/types';
 import {
   BranchesOutlined,
   CloseOutlined,
+  CodeOutlined,
   DeleteOutlined,
   DragOutlined,
   EditOutlined,
@@ -31,6 +32,7 @@ interface WorktreeCardProps {
   onCreateSession?: (worktreeId: string) => void;
   onDelete?: (worktreeId: string, deleteFromFilesystem: boolean) => void;
   onOpenSettings?: (worktreeId: string) => void;
+  onOpenTerminal?: (commands: string[]) => void;
   onUnpin?: (worktreeId: string) => void;
   isPinned?: boolean;
   zoneName?: string;
@@ -49,6 +51,7 @@ const WorktreeCard = ({
   onCreateSession,
   onDelete,
   onOpenSettings,
+  onOpenTerminal,
   onUnpin,
   isPinned = false,
   zoneName,
@@ -216,6 +219,18 @@ const WorktreeCard = ({
             title="Drag to reposition"
           />
           <div className="nodrag">
+            {onOpenTerminal && (
+              <Button
+                type="text"
+                size="small"
+                icon={<CodeOutlined />}
+                onClick={e => {
+                  e.stopPropagation();
+                  onOpenTerminal([`cd ${worktree.path}`]);
+                }}
+                title="Open terminal in worktree directory"
+              />
+            )}
             {onOpenSettings && (
               <Button
                 type="text"

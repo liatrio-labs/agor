@@ -140,9 +140,20 @@ export const App: React.FC<AppProps> = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalCommands, setTerminalCommands] = useState<string[]>([]);
   const [sessionSettingsId, setSessionSettingsId] = useState<string | null>(null);
   const [worktreeModalWorktreeId, setWorktreeModalWorktreeId] = useState<string | null>(null);
   const [currentBoardId, setCurrentBoardId] = useState(initialBoardId || boards[0]?.board_id || '');
+
+  const handleOpenTerminal = (commands: string[] = []) => {
+    setTerminalCommands(commands);
+    setTerminalOpen(true);
+  };
+
+  const handleCloseTerminal = () => {
+    setTerminalOpen(false);
+    setTerminalCommands([]);
+  };
 
   const handleCreateSession = (config: NewSessionConfig) => {
     console.log('Creating session with config:', config, 'for board:', currentBoardId);
@@ -164,7 +175,7 @@ export const App: React.FC<AppProps> = ({
     // If board_id is provided and worktree was created, assign it to the board
     if (worktree && config.board_id) {
       await onUpdateWorktree?.(worktree.worktree_id, {
-        board_id: config.board_id,
+        board_id: config.board_id as import('@agor/core/types').BoardID,
       });
     }
 
@@ -246,6 +257,9 @@ export const App: React.FC<AppProps> = ({
   };
 
   const selectedSession = sessions.find(s => s.session_id === selectedSessionId) || null;
+  const selectedSessionWorktree = selectedSession
+    ? worktrees.find(w => w.worktree_id === selectedSession.worktree_id)
+    : null;
   const sessionSettingsSession = sessionSettingsId
     ? sessions.find(s => s.session_id === sessionSettingsId)
     : null;
@@ -305,7 +319,7 @@ export const App: React.FC<AppProps> = ({
         activeUsers={allActiveUsers}
         currentUserId={user?.user_id}
         onSettingsClick={() => setSettingsOpen(true)}
-        onTerminalClick={() => setTerminalOpen(true)}
+        onTerminalClick={() => handleOpenTerminal()}
         onLogout={onLogout}
         currentBoardName={currentBoard?.name}
         currentBoardIcon={currentBoard?.icon}
@@ -337,6 +351,7 @@ export const App: React.FC<AppProps> = ({
             setWorktreeModalWorktreeId(worktreeId);
           }}
           onDeleteWorktree={onDeleteWorktree}
+          onOpenTerminal={handleOpenTerminal}
         />
         <NewSessionButton onClick={() => setNewWorktreeModalOpen(true)} />
       </Content>
@@ -354,6 +369,7 @@ export const App: React.FC<AppProps> = ({
       <SessionDrawer
         client={client}
         session={selectedSession}
+        worktree={selectedSessionWorktree}
         users={users}
         currentUserId={user?.user_id}
         repos={repos}
@@ -372,6 +388,7 @@ export const App: React.FC<AppProps> = ({
         onOpenWorktree={worktreeId => {
           setWorktreeModalWorktreeId(worktreeId);
         }}
+        onOpenTerminal={handleOpenTerminal}
         onUpdateSession={onUpdateSession}
       />
       <SettingsModal
@@ -432,7 +449,12 @@ export const App: React.FC<AppProps> = ({
           setSettingsOpen(true);
         }}
       />
-      <TerminalModal open={terminalOpen} onClose={() => setTerminalOpen(false)} client={client} />
+      <TerminalModal
+        open={terminalOpen}
+        onClose={handleCloseTerminal}
+        client={client}
+        initialCommands={terminalCommands}
+      />
       <NewWorktreeModal
         open={newWorktreeModalOpen}
         onClose={() => setNewWorktreeModalOpen(false)}
