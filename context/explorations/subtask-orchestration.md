@@ -2,8 +2,53 @@
 
 Related: [[agent-interface]], [[models]], [[core]], [[native-cli-feature-gaps]]
 
-**Status:** Exploration
+**Status:** Ready for Implementation (Phase 2 foundation complete)
 **Date:** January 2025
+**Last Updated:** January 2025 (post-Phase 2)
+
+---
+
+## TL;DR - The User-Triggered Approach
+
+**Problem:** How do we get agents to spawn Agor-tracked subtasks instead of using native delegation tools?
+
+**Solution:** Give users a **"Run in Subtask"** button that wraps their prompt in meta-instructions forcing the agent to:
+
+1. Prepare a detailed, enhanced version of the user's prompt
+2. Execute `agor session subtask {id} --prompt "{prepared_prompt}"`
+3. Report the child session ID
+
+**Why it works:**
+
+- ✅ Deterministic (user control, no hoping agent decides to delegate)
+- ✅ Simple (no SDK hacks, just prompt wrapping)
+- ✅ High compliance (meta-instructions force behavior)
+- ✅ Value-add (agent enriches vague prompts into detailed specs)
+- ✅ Agent-agnostic (works with Claude, Codex, Gemini - any bash-capable agent)
+
+**Effort:** ~9 hours for MVP (CLI command + daemon spawn method + UI button + canvas edges)
+
+---
+
+## What's Already Built (Phase 2)
+
+**Foundation in place for subtask orchestration:**
+
+✅ **Session Genealogy** - `parent_session_id` exists in data model, genealogy tracking implemented
+✅ **Agent SDK Integration** - Claude Agent SDK integrated with CLAUDE.md auto-loading
+✅ **Zone UI** - Zones can be created/configured on canvas (spawn functionality not wired yet)
+✅ **Canvas Visualization** - React Flow canvas with drag-and-drop, session tree display
+✅ **Real-time Updates** - WebSocket broadcasting means multiplayer users see new sessions appear live
+✅ **Session Forking** - Provides observability and "try different approaches" capability
+✅ **Worktree Isolation** - Each session can have isolated git workspace
+✅ **UUIDv7 Short IDs** - `01933f2b` format for readable session references
+
+**What's Missing:**
+
+❌ `agor session subtask` CLI command
+❌ Prompt injection for agent-initiated subtasks
+❌ Tool call monitoring and compliance tracking
+❌ Agent-to-agent subtask delegation
 
 ---
 
@@ -14,6 +59,7 @@ Related: [[agent-interface]], [[models]], [[core]], [[native-cli-feature-gaps]]
 ### The Problem
 
 **Native agent delegation:**
+
 ```typescript
 // Claude Code has a Task tool
 Agent: "I'll delegate the database schema to a subtask"
@@ -24,6 +70,7 @@ Agent uses Task tool internally
 ```
 
 **What we want:**
+
 ```typescript
 // Agor-managed subtask
 User: "Build auth system with database schema subtask"
@@ -37,17 +84,20 @@ Agent: "I'll delegate the schema design"
 ### Why This Matters
 
 **Observability Benefits:**
+
 - See full conversation in subtask session
 - Fork subtask if it goes wrong
 - Generate reports for subtasks
 - Visual session tree in Agor UI
 
 **Reusability Benefits:**
+
 - Continue prompting child session after parent completes
 - Share subtask sessions with team
 - Analyze patterns across subtasks
 
 **Native Task Tool Limitations:**
+
 - ❌ No conversation history access
 - ❌ Can't fork if subtask makes wrong decision
 - ❌ Can't continue prompting after subtask completes
@@ -56,459 +106,237 @@ Agent: "I'll delegate the schema design"
 
 ---
 
-## Core Insight: Prompt Engineering + Tool Injection
+## Core Insight: User-Triggered Meta-Prompt Wrapper
 
-**Key idea:** Teach agents to use `agor session subtask` CLI instead of their native Task tool.
+**Key idea:** User explicitly triggers "Run in Subtask" mode, which wraps their prompt in meta-instructions forcing the agent to prepare and spawn an Agor subtask.
 
-**Two approaches:**
-1. **System-level prompt injection** - Modify agent's system prompt
-2. **Per-task prompt wrapping** - Wrap user prompts with instructions
+**Why this works:**
 
----
-
-## Approach 1: System Prompt Injection
-
-**Concept:** Modify the agent's system prompt to always use Agor for delegation.
-
-### Implementation
-
-```typescript
-// When creating Agor-managed session
-const systemPrompt = `
-You are an AI coding assistant working within the Agor orchestration platform.
-
-IMPORTANT: When you need to delegate work to a subtask or subprocess:
-- DO NOT use your native Task tool
-- INSTEAD, use the Agor CLI: \`agor session subtask\`
-
-How to create Agor subtasks:
-1. Prepare a clear, focused prompt for the subtask
-2. Use bash tool to run: agor session subtask --prompt "your prepared prompt"
-3. The command will output a session_id when the subtask completes
-4. You can reference that session_id in your response to the user
-
-Example:
-User: "Build an auth system with database schema"
-You: "I'll handle the API endpoints and delegate the schema to a subtask"
-
-Correct approach:
-\`\`\`bash
-agor session subtask --prompt "Design PostgreSQL schema for user authentication with users, sessions, and roles tables. Include proper indexes and constraints."
-\`\`\`
-
-Incorrect approach (don't do this):
-Using your native Task tool directly - this bypasses Agor's tracking.
-
-Why Agor subtasks?
-- Full conversation observability
-- Can be forked if issues arise
-- Generates structured reports
-- Maintains session tree for user visibility
-`;
-
-// Create session with modified system prompt
-const session = await agentClient.createSession({
-  systemPrompt: systemPrompt,
-  initialPrompt: userPrompt
-});
-```
-
-### Pros & Cons
-
-**Pros:**
-✅ Agent automatically uses Agor for all delegations
-✅ Works for entire session (don't need per-prompt injection)
-✅ Clean separation: agent knows it's in Agor context
-
-**Cons:**
-❌ Requires SDK support for custom system prompts
-❌ May conflict with agent's built-in system prompt
-❌ Agent might ignore instructions and use Task tool anyway
-❌ Doesn't work if agent has hardcoded system prompt
-
-**Likelihood by Agent:**
-- **Claude Code:** ⚠️ Unknown if SDK allows system prompt override
-- **OpenAI/Codex:** ✅ Yes, system message is first message
-- **Cursor:** ❌ Likely no control over system prompt
-- **Gemini:** ✅ Yes, system instructions supported
+- ✅ **Deterministic** - Not hoping agent decides to delegate
+- ✅ **Simple** - No system prompt injection or tool interception needed
+- ✅ **Value-add** - Agent optimizes the prompt before spawning subtask
+- ✅ **User control** - Explicit button press, clear intent
+- ✅ **High compliance** - Meta-instructions force the behavior
 
 ---
 
-## Approach 2: Per-Task Prompt Wrapping
+## The "Run in Subtask" Meta-Prompt
 
-**Concept:** Wrap each user prompt with instructions about Agor context.
+**UI Interaction:**
 
-### Implementation
-
-```typescript
-async function executeTaskWithAgorContext(
-  userPrompt: string,
-  sessionId: string
-) {
-  // Wrap user prompt with Agor instructions
-  const wrappedPrompt = `
-[AGOR CONTEXT]
-You are working in an Agor-managed session (ID: ${sessionId}).
-
-When delegating subtasks:
-- Use: \`agor session subtask --prompt "..."\` (Agor-tracked)
-- Avoid: Your native Task tool (not tracked by Agor)
-
-Agor subtasks provide full observability, forking, and report generation.
-
-[USER REQUEST]
-${userPrompt}
-`;
-
-  return await session.executeTask(wrappedPrompt);
-}
-```
-
-### Enhanced Version with Examples
-
-```typescript
-function wrapPromptWithAgorContext(userPrompt: string, sessionId: string) {
-  return `
-[AGOR SESSION CONTEXT]
-Session ID: ${sessionId}
-Platform: Agor Orchestration
-
-DELEGATION GUIDELINES:
-When you need to spawn a subtask or delegate work, use Agor's subtask system:
-
-Correct pattern:
-\`\`\`bash
-# Prepare a focused prompt for the subtask
-agor session subtask --prompt "Clear, specific subtask description with context"
-\`\`\`
-
-Example scenario:
-User asks: "Build auth API with database schema and tests"
-
-Your approach:
-1. Main task: Implement auth API endpoints
-2. Subtask 1: Database schema design
-   \`\`\`bash
-   agor session subtask --prompt "Design PostgreSQL schema for authentication: users, sessions, roles tables with proper constraints"
-   \`\`\`
-3. Subtask 2: Test suite
-   \`\`\`bash
-   agor session subtask --prompt "Write integration tests for auth endpoints: signup, login, logout, token refresh"
-   \`\`\`
-
-Benefits of Agor subtasks:
-- Full conversation history visible to user
-- Can be forked if approach needs revision
-- Generates structured reports automatically
-- Appears in user's session tree visualization
-
----
-
-USER REQUEST:
-${userPrompt}
-`;
-}
-```
-
-### Pros & Cons
-
-**Pros:**
-✅ Works without SDK system prompt support
-✅ Can adjust instructions per task
-✅ More explicit (agent sees context every time)
-✅ Easy to A/B test different prompting strategies
-
-**Cons:**
-❌ Adds tokens to every prompt (higher cost)
-❌ Agent might get "instruction fatigue"
-❌ More brittle (agent might still ignore)
-❌ Verbose for users who see raw prompts
-
-**Likelihood of Success:**
-- Higher than system prompt approach
-- Agents generally respect in-prompt instructions
-- Can be refined based on agent behavior
-
----
-
-## Approach 3: Tool Replacement / Interception
-
-**Concept:** Replace agent's native Task tool with Agor's subtask command.
-
-### How It Works
-
-**Step 1: Detect when agent wants to use Task tool**
-```typescript
-execution.onToolCall((tool) => {
-  if (tool.name === 'Task' || tool.name === 'delegate') {
-    // Agent wants to spawn subtask
-    interceptTaskTool(tool);
-  }
-});
-```
-
-**Step 2: Intercept and redirect to Agor**
-```typescript
-async function interceptTaskTool(toolCall: ToolCall) {
-  const subtaskPrompt = toolCall.input.prompt;
-
-  // Create Agor subtask instead
-  const childSession = await agor.session.subtask({
-    parentSessionId: currentSessionId,
-    prompt: subtaskPrompt,
-    agent: 'claude-code' // or same as parent
-  });
-
-  // Wait for completion
-  const result = await childSession.waitForCompletion();
-
-  // Return result to parent agent as if Task tool succeeded
-  return {
-    toolCallId: toolCall.id,
-    output: {
-      success: true,
-      sessionId: childSession.sessionId,
-      result: result.summary
-    }
-  };
-}
-```
-
-### Pros & Cons
-
-**Pros:**
-✅ Transparent to agent (no prompt engineering needed)
-✅ Works even if agent ignores prompt instructions
-✅ Can inject additional context into subtask
-✅ Full control over subtask execution
-
-**Cons:**
-❌ Requires SDK to expose tool interception
-❌ Complex to implement (async tool handling)
-❌ May break agent's assumptions about Task tool behavior
-❌ Hard to debug if interception fails
-
-**SDK Requirements:**
-```typescript
-interface TaskExecution {
-  onToolCall(handler: (tool: ToolCall) => Promise<ToolResult>): void;
-  interceptTool(name: string, handler: InterceptHandler): void;
-}
-```
-
-**Likelihood:**
-- **Claude Code:** ⚠️ Maybe - if SDK exposes tool hooks
-- **OpenAI:** ❌ No - function calling doesn't allow interception
-- **Cursor:** ❌ Unlikely
-- **Gemini:** ❌ Unlikely
-
----
-
-## Approach 4: Hybrid (Prompt + Tool Detection)
-
-**Concept:** Use prompt wrapping + detect when agent uses Task tool anyway, then migrate.
-
-### Implementation
-
-```typescript
-class AgorSubtaskOrchestrator {
-  async executeTask(prompt: string, sessionId: string) {
-    // Wrap prompt (Approach 2)
-    const wrappedPrompt = wrapPromptWithAgorContext(prompt, sessionId);
-
-    const execution = await session.executeTask(wrappedPrompt);
-
-    // Monitor for native Task tool usage (Approach 3 detection)
-    const subtasks: ChildSession[] = [];
-
-    execution.onToolCall(async (tool) => {
-      if (tool.name === 'Task' || tool.name === 'bash') {
-        const command = tool.input.command;
-
-        // Check if it's an Agor subtask command
-        if (command.includes('agor session subtask')) {
-          // ✅ Agent followed instructions!
-          const childSessionId = await handleAgorSubtask(command);
-          subtasks.push({ sessionId: childSessionId, type: 'agor' });
-        } else if (this.looksLikeTaskDelegation(tool)) {
-          // ⚠️ Agent used native Task tool - warn but allow
-          console.warn('Agent used native Task tool instead of Agor subtask');
-          subtasks.push({
-            sessionId: null,
-            type: 'native',
-            warning: 'Not tracked by Agor'
-          });
-        }
-      }
-    });
-
-    const result = await execution;
-
-    return {
-      result,
-      subtasks,
-      compliance: subtasks.every(s => s.type === 'agor')
-    };
-  }
-
-  private looksLikeTaskDelegation(tool: ToolCall): boolean {
-    // Heuristics to detect native task delegation
-    return tool.name === 'Task'
-      || (tool.name === 'bash' && tool.input.command?.includes('task'));
-  }
-}
-```
-
-### Pros & Cons
-
-**Pros:**
-✅ Best of both worlds (prompt + detection)
-✅ Can warn user if agent doesn't comply
-✅ Graceful degradation (works even if agent ignores)
-✅ Collects data on agent compliance rates
-
-**Cons:**
-❌ Complex implementation
-❌ Still requires prompt wrapping (token overhead)
-❌ Detection heuristics might miss edge cases
-
-**Recommendation:** **This is probably the best approach** for V1.
-
----
-
-## User Experience: Creating Subtasks
-
-### UI Flow
-
-**Scenario:** User wants to delegate a subtask
-
-**Option A: Explicit Subtask Button**
 ```
 ┌─────────────────────────────────────────┐
-│ Session: Build Auth System              │
+│ Session: Main Dev Session               │
 ├─────────────────────────────────────────┤
-│ Input Box:                              │
+│ Input:                                  │
 │ ┌─────────────────────────────────────┐ │
-│ │ Design the database schema for      │ │
-│ │ user authentication...              │ │
+│ │ Design PostgreSQL schema for auth   │ │
+│ │ system                              │ │
 │ └─────────────────────────────────────┘ │
 │                                         │
-│ [Send]  [Fork]  [🎯 Create Subtask]    │
+│ [Send]  [Run in Subtask 🎯]            │
 └─────────────────────────────────────────┘
 ```
 
-**When user clicks "Create Subtask":**
-1. Agor prepares subtask context
-2. Sends wrapped prompt to parent agent:
-   ```
-   "Please help prepare an optimal prompt for a subtask based on:
-   [User's subtask description]
+**When user clicks "Run in Subtask", wrap their prompt:**
 
-   Then execute: agor session subtask --prompt '[your prepared prompt]'"
-   ```
-3. Agent refines prompt and creates Agor subtask
-4. New session appears in tree as child
+### The Meta-Prompt Script
 
-**Option B: Agent-Initiated Subtask**
-```
-Agent response:
-"I'll handle the API implementation and delegate the schema design
-to a focused subtask."
-
-Running: agor session subtask --prompt "..."
-↓
-[Agor UI shows new child session appearing in tree]
-```
-
-**Option C: Auto-Detect Pattern**
-```
-User prompt: "Build auth with separate subtasks for schema and tests"
-
-Agor detects keywords: "subtasks", "separate", "delegate"
-→ Suggests subtask mode in UI
-→ Or automatically instructs agent to use subtasks
-```
-
----
-
-## Agent-Specific Strategies
-
-### Claude Code
-
-**Native Capability:** Has Task tool for delegation
-
-**Agor Strategy:**
 ```typescript
-// System prompt or per-task wrapping
-const instructions = `
-When delegating work, prefer Agor subtasks over your Task tool:
+function wrapForSubtaskExecution(userPrompt: string, sessionId: string): string {
+  return `You are being asked to spawn a subtask in the Agor orchestration platform.
 
-Native Task tool:
-- Spawns subprocess (no Agor visibility)
-- Can't fork or continue conversation after completion
+TASK BREAKDOWN:
+1. Analyze the user's request below
+2. Prepare an optimized, detailed prompt for a specialized agent
+3. Execute the agor CLI command to spawn the subtask
+4. Report back to the user with the subtask session ID
 
-Agor subtask:
+USER'S REQUEST:
+"""
+${userPrompt}
+"""
+
+YOUR INSTRUCTIONS:
+
+Step 1: Analyze the request
+- Identify the core task and requirements
+- Determine what context the subtask agent will need
+- Consider what constraints or format requirements apply
+
+Step 2: Prepare the subtask prompt
+Create a comprehensive prompt for the subtask agent that includes:
+- Clear objective and success criteria
+- All necessary context and requirements
+- Expected output format
+- Any constraints or guidelines
+
+The prepared prompt should be MORE detailed than the user's original request.
+Add technical context, specify formats, and clarify ambiguities.
+
+Step 3: Execute the command
+Run this EXACT command format:
 \`\`\`bash
-agor session subtask --agent claude-code --prompt "focused task description"
+agor session subtask ${sessionId} --prompt "YOUR_PREPARED_PROMPT_HERE"
 \`\`\`
-- Full conversation history
-- Forkable if approach needs revision
-- Generates reports automatically
-`;
+
+IMPORTANT NOTES:
+- Replace ${sessionId} with the actual session ID: ${sessionId}
+- Put your prepared prompt in the --prompt argument
+- Use double quotes around the prompt
+- Escape any quotes inside the prompt with backslashes
+- The command will return a child session ID when the subtask starts
+
+Step 4: Report completion
+After running the command, tell the user:
+- What subtask you created
+- The session ID of the child session
+- What to expect from the subtask
+
+EXAMPLE:
+
+User request: "add unit tests"
+
+Your prepared prompt should be like:
+"Write comprehensive unit tests for the authentication module. Include:
+- Test user registration with valid/invalid inputs
+- Test login flow with correct/incorrect credentials
+- Test session token generation and validation
+- Test password hashing security
+- Use Jest as the testing framework
+- Aim for >80% code coverage
+- Follow existing test patterns in tests/ directory"
+
+Then execute:
+\`\`\`bash
+agor session subtask ${sessionId} --prompt "Write comprehensive unit tests for the authentication module. Include: test user registration with valid/invalid inputs, test login flow with correct/incorrect credentials, test session token generation and validation, test password hashing security. Use Jest as the testing framework. Aim for >80% code coverage. Follow existing test patterns in tests/ directory."
+\`\`\`
+
+Now proceed with the user's request above.`;
+}
 ```
 
-**Compliance Detection:**
+### Optimized Shorter Version (Lower Token Cost)
+
 ```typescript
-execution.onToolCall((tool) => {
-  if (tool.name === 'Task') {
-    logWarning('Claude used native Task instead of Agor subtask');
-    // Could inject reminder for next prompt
-  } else if (tool.name === 'bash' && tool.input.includes('agor session subtask')) {
-    logSuccess('Claude correctly used Agor subtask');
-  }
-});
+function wrapForSubtaskExecution(userPrompt: string, sessionId: string): string {
+  return `SUBTASK DELEGATION MODE
+
+User wants this done in a subtask:
+"""
+${userPrompt}
+"""
+
+YOUR TASK:
+1. Prepare a detailed, comprehensive prompt for a subtask agent (add technical context, specify formats, clarify requirements)
+2. Run: \`agor session subtask ${sessionId} --prompt "YOUR_PREPARED_PROMPT"\`
+3. Tell user the child session ID that was created
+
+EXAMPLE:
+User: "add tests"
+Your prepared prompt: "Write Jest unit tests for auth module: registration validation, login flow, token handling, password hashing. Aim for 80%+ coverage. Match existing test patterns."
+Command: \`agor session subtask ${sessionId} --prompt "Write Jest unit tests for auth module: registration validation, login flow, token handling, password hashing. Aim for 80%+ coverage. Match existing test patterns."\`
+
+Make your prepared prompt MORE detailed than the user's original request.
+Proceed now.`;
+}
 ```
 
 ---
 
-### Cursor
+## User Experience Flow
 
-**Native Capability:** Unknown (may not have explicit subtask tool)
+### Primary: "Run in Subtask" Button
 
-**Agor Strategy:**
-- Likely doesn't need special handling
-- If Cursor delegates, it's probably via prompting, not tool
-- Agor prompt wrapping should work
+**User Flow:**
 
----
+1. User types prompt in SessionDrawer: "Design PostgreSQL schema for auth"
+2. User clicks **"Run in Subtask 🎯"** button (instead of "Send")
+3. UI wraps prompt with meta-instructions (using function above)
+4. Agent receives wrapped prompt, prepares detailed subtask prompt
+5. Agent executes: `agor session subtask {session-id} --prompt "..."`
+6. Child session appears on canvas with visual connection to parent
+7. Agent reports: "Created subtask session `01933f2b` for schema design"
+8. User can click into child session to watch it work in real-time
 
-### OpenAI/Codex
+**Visual Feedback:**
 
-**Native Capability:** No built-in subtask mechanism
+- Loading indicator while agent prepares subtask
+- Toast notification when child session spawns
+- Animated edge connecting parent → child on canvas
+- Child session badge shows "Spawned from {parent-id}"
 
-**Agor Strategy:**
-```typescript
-// Codex doesn't have native subtasks, so easier to control
-const systemMessage = {
-  role: 'system',
-  content: `
-  When you need to delegate focused work, use:
-  \`agor session subtask --prompt "clear task description"\`
+### Secondary: Zone Triggers (Future)
 
-  This creates a new AI session optimized for the subtask.
-  `
+Zone-based subtask spawning (when wired up):
+
+- Drop session onto zone with template
+- Zone prompt + user input → wrapped meta-prompt
+- Spawns child session positioned in zone
+
+### Implementation Notes
+
+**SessionDrawer Changes:**
+
+```tsx
+// Add button next to existing input
+<Space>
+  <Button onClick={handleSend}>Send</Button>
+  <Button type="primary" icon={<RocketOutlined />} onClick={handleRunInSubtask}>
+    Run in Subtask
+  </Button>
+</Space>;
+
+// Handler
+const handleRunInSubtask = async () => {
+  const wrappedPrompt = wrapForSubtaskExecution(inputValue, session.session_id);
+  await sendMessage(wrappedPrompt);
+  // Rest is handled by agent + WebSocket updates
 };
 ```
 
-**Likely Compliance:** High (no competing tool to use instead)
+**Canvas Updates:**
+
+- Already supports real-time session additions via WebSocket ✅
+- Parent/child edges can use existing React Flow edge system ✅
+- Need to query genealogy to draw edges (genealogy data already tracked)
 
 ---
 
-### Gemini
+## Agent Compatibility
 
-**Native Capability:** Unknown
+The user-triggered meta-prompt approach is **agent-agnostic** and works with any agent that can:
 
-**Agor Strategy:** Similar to Codex (system instructions + prompt wrapping)
+1. Execute bash commands via tool use
+2. Follow clear step-by-step instructions
+
+### Claude Code ✅
+
+- **Works perfectly** - Excellent at following structured prompts
+- Has bash tool to run `agor session subtask` command
+- Tends to add helpful context when preparing prompts
+- Native Task tool won't interfere (meta-prompt is explicit)
+
+### OpenAI/Codex ✅
+
+- **Works well** - Good at following instructions
+- Has function calling for bash execution
+- No competing subtask mechanism to confuse it
+- May need slight prompt tuning for best results
+
+### Gemini ✅ (Pending SDK Integration)
+
+- **Should work** - Supports system instructions and tool use
+- Once SDK integrated, meta-prompt approach should transfer directly
+- No known conflicts
+
+### Future Agents
+
+Any agent with bash/command execution capability can use this approach:
+
+- No special SDK features required
+- No system prompt modification needed
+- Just needs to run `agor session subtask` command
 
 ---
 
@@ -517,6 +345,7 @@ const systemMessage = {
 ### Agor CLI: `agor session subtask`
 
 **Command:**
+
 ```bash
 agor session subtask \
   --prompt "Design PostgreSQL schema for auth" \
@@ -526,12 +355,14 @@ agor session subtask \
 ```
 
 **What it does:**
+
 1. Creates new session with `parent_session_id` set
 2. Loads specified concepts into context
 3. Executes prompt
 4. Returns session_id when complete (if --sync)
 
 **In Agent Context:**
+
 ```bash
 # Agent runs this via bash tool
 agor session subtask --prompt "Design user table schema" --sync
@@ -545,6 +376,7 @@ agor session subtask --prompt "Design user table schema" --sync
 ```
 
 **Agent sees output, can reference in response:**
+
 ```
 "I've delegated the schema design to a subtask (session 01933f2b).
 The subtask created a users table with proper constraints..."
@@ -555,152 +387,190 @@ The subtask created a users table with proper constraints..."
 ### Agor Daemon: Subtask Handler
 
 ```typescript
-// Feathers service for subtasks
-class SubtaskService {
-  async create(data: CreateSubtaskRequest, params) {
-    const { prompt, parentSessionId, agent, concepts, sync } = data;
+// apps/agor-daemon/src/services/subtasks.ts
+// Can reuse existing sessions service with spawn method
 
-    // Create child session
-    const childSession = await this.sessionsService.create({
-      agent,
-      concepts,
-      genealogy: {
-        parent_session_id: parentSessionId,
-        spawn_point_task_id: params.currentTaskId
-      }
-    });
+class SessionsService {
+  // Add spawn method for subtask creation
+  async spawn(sessionId: SessionID, data: SpawnSubtaskRequest, params: Params) {
+    const parentSession = await this.get(sessionId);
+    const { prompt, agent, zoneId, sync = false } = data;
 
-    // Execute task
-    const execution = await this.agentClients[agent]
-      .getSession(childSession.session_id)
-      .executeTask(prompt);
+    // Create child session with genealogy
+    const childSession = await this.create(
+      {
+        agent: agent || parentSession.agent,
+        status: 'running',
+        genealogy: {
+          parent_session_id: sessionId,
+          fork_point_task_id: null, // Not a fork, it's a spawn
+        },
+        repo_id: parentSession.repo_id, // Inherit repo context
+        worktree_id: null, // Child can create its own worktree
+      },
+      params
+    );
+
+    // Position near parent on canvas if zone specified
+    if (zoneId) {
+      await this.boardObjectsService.create({
+        board_id: parentSession.board_id,
+        object_type: 'session',
+        object_id: childSession.session_id,
+        zone_id: zoneId,
+      });
+    }
+
+    // Execute initial prompt via Agent SDK
+    const agentClient = this.agentClients[childSession.agent];
+    const execution = agentClient.getSession(childSession.session_id).executeTask(prompt);
 
     if (sync) {
-      // Wait for completion
-      const result = await execution;
+      // Wait for completion (blocking)
+      await execution;
+      const updated = await this.get(childSession.session_id);
       return {
-        sessionId: childSession.session_id,
-        status: 'completed',
-        summary: result.summary
+        session_id: childSession.session_id,
+        status: updated.status,
       };
     } else {
-      // Return immediately
+      // Return immediately (async, default)
+      // WebSocket will broadcast session updates as it runs
       return {
-        sessionId: childSession.session_id,
-        status: 'running'
+        session_id: childSession.session_id,
+        status: 'running',
       };
     }
   }
 }
 ```
 
+**Integration Points:**
+
+- Reuses existing `sessions` service (no new service needed!)
+- Works with existing Agent SDK clients (Claude, Codex, Gemini)
+- Leverages WebSocket broadcasting for real-time updates
+- Inherits repo context from parent (child can create own worktree if needed)
+- Zone positioning handled via existing board_objects service
+
 ---
 
-## Observability & Compliance Tracking
+## Observability & Session Tree
 
-### Measure Agent Compliance
+### Genealogy Tracking
 
-**Track how often agents follow instructions:**
+Every subtask automatically gets genealogy metadata:
 
 ```typescript
-interface SubtaskComplianceMetrics {
-  sessionId: string;
-  totalSubtasks: number;
-  agorTracked: number;      // Used agor session subtask
-  nativeTools: number;       // Used Task tool
-  complianceRate: number;    // agorTracked / totalSubtasks
-}
-
-// Example analytics
-{
-  sessionId: '01933e4a',
-  totalSubtasks: 5,
-  agorTracked: 4,
-  nativeTools: 1,
-  complianceRate: 0.80  // 80% compliance
+interface SessionGenealogy {
+  parent_session_id: SessionID | null;
+  fork_point_task_id: TaskID | null; // null for spawns
+  spawn_depth: number; // 0 = root, 1 = child, 2 = grandchild, etc.
 }
 ```
 
-**Display in UI:**
+### Visual Session Tree
+
+Canvas displays parent → child relationships:
+
 ```
 Session Tree:
-├─ Session A (claude-code) ✅ 100% Agor subtasks
-│   ├─ Subtask 1 (Agor-tracked)
-│   └─ Subtask 2 (Agor-tracked)
+├─ Main Dev Session (claude-code)
+│   ├─ Schema Design (subtask, claude-code)
+│   │   └─ Migration Scripts (subtask, claude-code)
+│   └─ Unit Tests (subtask, claude-code)
 │
-└─ Session B (claude-code) ⚠️ 60% Agor subtasks
-    ├─ Subtask 3 (Agor-tracked)
-    ├─ Subtask 4 (Native Task - not visible)
-    └─ Subtask 5 (Agor-tracked)
+└─ API Development (claude-code)
+    └─ Integration Tests (subtask, codex)
 ```
+
+**Canvas Rendering:**
+
+- Solid edges for spawn relationships (parent → child)
+- Dashed edges for fork relationships (original → fork)
+- Color-coded by agent type
+- Badge showing spawn depth
 
 ---
 
-## Prompt Engineering Best Practices
+## Refining the Meta-Prompt
 
-### Effective Delegation Instructions
+### Iterating on Instructions
 
-**❌ Too vague:**
-```
-"When delegating, use Agor subtasks instead of Task tool"
-```
+The meta-prompt can be tuned based on agent behavior:
 
-**✅ Clear with examples:**
-```
-When you need to delegate focused work to a subtask:
-
-DO THIS:
-\`\`\`bash
-agor session subtask --prompt "Clear, focused task description"
-\`\`\`
-
-NOT THIS:
-Using your native Task tool (bypasses Agor tracking)
-
-Example:
-User: "Build auth with database schema"
-You: "I'll handle endpoints and delegate schema..."
-
-Correct:
-\`\`\`bash
-agor session subtask --prompt "Design PostgreSQL schema for user auth: users, sessions, roles tables"
-\`\`\`
-```
-
-### Context Preparation for Subtasks
-
-**Agent should prepare optimal subtask prompts:**
+**If agent doesn't add enough detail:**
 
 ```typescript
-// Instead of just passing user prompt through
-const userSubtaskRequest = "design the schema";
-
-// Agent prepares comprehensive subtask prompt
-const preparedPrompt = `
-Design PostgreSQL database schema for user authentication.
-
-Requirements:
-- Users table: id, email, password_hash, created_at
-- Sessions table: token, user_id, expires_at
-- Roles table: role_name, permissions (JSONB)
-- Proper indexes on foreign keys
-- UUID primary keys
-
-Constraints:
-- Email uniqueness
-- Cascade deletes for sessions when user deleted
-- Check constraint on expires_at (must be future)
-
-Output format:
-- SQL migration file
-- ER diagram (mermaid)
-- Index strategy explanation
-`;
-
-await bash(`agor session subtask --prompt "${preparedPrompt}"`);
+// Emphasize more
+"Make your prepared prompt AT LEAST 2x longer than the user's request.
+Add specific technical requirements, expected formats, and constraints."
 ```
 
-**This is huge value:** Agent enriches user's vague request into detailed subtask context.
+**If agent forgets to run the command:**
+
+```typescript
+// Add urgency
+"CRITICAL: You MUST execute the agor session subtask command.
+Do not just explain what you would do - actually run it."
+```
+
+**If agent uses wrong format:**
+
+```typescript
+// Show exact template
+"Use EXACTLY this format (replace PROMPT with your prepared prompt):
+agor session subtask ${sessionId} --prompt \"PROMPT\""
+```
+
+### Quality Metrics
+
+Track subtask prompt quality over time:
+
+```typescript
+interface SubtaskQualityMetrics {
+  user_prompt_length: number;
+  prepared_prompt_length: number;
+  expansion_ratio: number;  // prepared / user
+  included_context: boolean;
+  specified_format: boolean;
+  included_constraints: boolean;
+}
+
+// Example good subtask
+{
+  user_prompt_length: 25,  // "add tests for auth"
+  prepared_prompt_length: 180,
+  expansion_ratio: 7.2,  // 7x more detailed!
+  included_context: true,  // mentioned auth module specifically
+  specified_format: true,  // "use Jest", "80% coverage"
+  included_constraints: true,  // "follow existing test patterns"
+}
+```
+
+### A/B Testing Variations
+
+Test different meta-prompt styles:
+
+**Variation A: Verbose with examples**
+
+- Full step-by-step breakdown
+- Multiple examples
+- ~250 tokens overhead
+
+**Variation B: Concise with template**
+
+- Brief instructions + template
+- Single example
+- ~100 tokens overhead
+
+**Variation C: Minimal**
+
+- Just the command format
+- No examples
+- ~50 tokens overhead
+
+**Recommendation:** Start with Variation B (concise), upgrade to A if compliance is low.
 
 ---
 
@@ -719,6 +589,7 @@ agor session subtask \
 ```
 
 **Cross-agent delegation benefits:**
+
 - Use best tool for each job
 - Gemini for schemas, Claude for reasoning, Codex for boilerplate
 - Full observability across agent types
@@ -727,110 +598,440 @@ agor session subtask \
 
 ## Open Questions
 
-### 1. Should subtasks auto-start or require confirmation?
-
-**Option A: Auto-start**
-- Agent calls `agor session subtask`, Agor immediately creates child session
-- Faster, agent-driven
-
-**Option B: Confirm**
-- Agent signals intent, user confirms in UI modal
-- More control, but interrupts flow
-
-**Recommendation:** Auto-start (trust agent), with UI notification
-
----
-
-### 2. How to handle deeply nested subtasks?
+### 1. How to handle deeply nested subtasks?
 
 **Scenario:**
+
 ```
-Session A
-└─ Subtask B
-   └─ Subtask C
-      └─ Subtask D
+Session A (user clicks "Run in Subtask")
+└─ Subtask B (user opens B, clicks "Run in Subtask" again)
+   └─ Subtask C (another level deep)
+      └─ Subtask D (getting hard to track)
 ```
 
 **Concerns:**
-- Tree gets very deep
-- Context drift across levels
-- Hard to visualize
 
-**Recommendation:**
-- Limit depth to 3 levels (configurable)
-- Warn if agent tries to go deeper
-- Provide "flatten" option to merge subtask back into parent
+- Tree gets very deep (hard to visualize)
+- Context drift across levels (each agent loses parent context)
+- Which session is "active" becomes unclear
+
+**Options:**
+
+**A: Unlimited depth (trust users)**
+
+- Let users nest as deep as they want
+- Show spawn_depth badge on each session
+- Provide "collapse/expand" in genealogy view
+
+**B: Depth limit with warning**
+
+- Soft limit at 3 levels (warn but allow)
+- Hard limit at 5 levels (block with explanation)
+- Suggest forking instead of spawning at limit
+
+**C: Flatten on-demand**
+
+- Allow any depth
+- Provide "Merge into parent" button to collapse subtask back
+
+**Recommendation:** Start with Option A (unlimited), add B (warnings) if users report confusion
 
 ---
 
-### 3. Sync vs Async subtasks?
+### 2. Async vs. Sync execution?
 
-**Sync (--sync flag):**
-- Parent waits for subtask completion
-- Gets result back immediately
-- Blocking
+**Default: Async (non-blocking)**
 
-**Async (default):**
-- Parent continues while subtask runs
-- Checks status later
-- Non-blocking
+- Child session starts immediately
+- Parent session can continue (user can send more prompts)
+- User can switch between parent/child in real-time
+- WebSocket broadcasts child status updates
 
-**Recommendation:** Default to sync for simplicity, allow async for advanced use
+**Optional: Sync flag (blocking)**
+
+```bash
+agor session subtask {id} --prompt "..." --sync
+```
+
+- Parent session waits for child completion
+- Agent gets child result before continuing
+- Useful for sequential dependencies
+
+**Recommendation:** Default to async (fits multiplayer model), support --sync for power users
+
+**Implementation note:**
+
+- Async: CLI returns immediately with child session_id
+- Sync: CLI polls child status, returns when complete
+- Parent agent sees child session_id in both cases
 
 ---
 
-### 4. What if agent refuses to use Agor subtasks?
+### 3. What if agent doesn't follow meta-prompt?
 
-**Fallback strategy:**
-1. Detect native Task tool usage
-2. Show warning in UI: "Subtask not tracked by Agor"
-3. Offer to migrate: "Convert to Agor subtask?" button
-4. If user clicks, pause parent, create Agor subtask with same prompt
+**Scenario:** Agent explains what it would do but doesn't run the command
+
+**Fallback strategies:**
+
+**A: Retry with stronger prompt**
+
+```typescript
+if (!responseContains('agor session subtask')) {
+  resendWithEmphasis('CRITICAL: You must EXECUTE the command, not explain it');
+}
+```
+
+**B: Parse intent and auto-spawn**
+
+```typescript
+// If agent says "I would create a subtask for..." but doesn't run command
+// Extract the intended prompt and spawn on agent's behalf
+const intent = extractSubtaskIntent(agentResponse);
+if (intent) {
+  await spawnSubtask(sessionId, intent.prompt);
+}
+```
+
+**C: User manual spawn**
+
+```
+Agent: "I think we should create a subtask for schema design"
+→ UI shows: "Agent suggested a subtask. [Create it manually]" button
+```
+
+**Recommendation:** Start with A (retry), add B (auto-spawn) if compliance is consistently low
+
+---
+
+### 4. Should meta-prompt be visible to user?
+
+**Option A: Transparent (show wrapped prompt)**
+
+- User sees full meta-prompt in conversation history
+- Pro: Full visibility, clear what happened
+- Con: Verbose, clutters conversation
+
+**Option B: Hidden (show original prompt only)**
+
+- User sees their original prompt in history
+- Meta-wrapping happens invisibly
+- Pro: Clean conversation, focused on user intent
+- Con: Less transparent, "magic" behavior
+
+**Option C: Collapsible (show indicator + expand option)**
+
+```
+User: "Design schema" [🎯 Run in Subtask]
+→ Expandable: "See meta-prompt instructions"
+```
+
+**Recommendation:** Option B (hidden) for cleaner UX, with dev mode toggle to show meta-prompts
 
 ---
 
 ## Success Criteria
 
-**V1 Subtask System is successful if:**
-1. ✅ Agents comply 80%+ of the time with Agor subtask instructions
-2. ✅ Users can see full conversation history in subtask sessions
-3. ✅ Subtasks appear correctly in session tree UI
-4. ✅ Can fork subtasks independently of parent
-5. ✅ Reports generated for subtasks
-6. ✅ Can continue prompting child session after parent completes
+**V1 User-Triggered Subtask System is successful if:**
+
+1. ✅ **"Run in Subtask" button works reliably**
+   - User clicks button → agent spawns child session
+   - Child session appears on canvas within 5 seconds
+   - Agent compliance >90% (actually runs the command)
+
+2. ✅ **Agent adds value in prompt preparation**
+   - Prepared prompts are 2-5x more detailed than user input
+   - Include technical context, formats, constraints
+   - Measurable via expansion_ratio metric
+
+3. ✅ **Full observability of subtask sessions**
+   - Complete conversation history accessible
+   - Can click into child session while it's running
+   - WebSocket updates show real-time progress
+
+4. ✅ **Visual genealogy on canvas**
+   - Parent → child edges render correctly
+   - Spawn depth badges visible
+   - Can trace lineage from any session
+
+5. ✅ **Subtasks are forkable and shareable**
+   - Child sessions can be forked independently
+   - Can continue prompting child after parent completes
+   - Reports generated for subtasks same as regular sessions
+
+6. ✅ **User experience is intuitive**
+   - Users understand when to use "Run in Subtask" vs "Send"
+   - Clear feedback when subtask spawns
+   - Easy to navigate parent/child relationships
 
 ---
 
 ## Implementation Roadmap
 
-### Phase 1: Basic Subtask Support
-1. Implement `agor session subtask` CLI command
-2. Add `parent_session_id` to Session model
-3. Create SubtaskService in Feathers
-4. Test with hardcoded prompts
+### Phase 1: Core Infrastructure ✅ (Mostly Complete)
 
-### Phase 2: Prompt Engineering
-1. Design system prompt for Claude Code
-2. Implement per-task prompt wrapping
-3. A/B test different instruction phrasings
-4. Measure compliance rates
+1. ✅ Session genealogy tracking (parent_session_id exists)
+2. ❌ CLI command: `agor session subtask`
+3. ❌ Daemon: `POST /sessions/:id/spawn` endpoint
+4. ✅ Canvas visualization (React Flow + WebSocket)
 
-### Phase 3: Tool Detection
-1. Monitor tool calls for native Task usage
-2. Log compliance metrics
-3. Build UI warnings for non-Agor subtasks
-4. Implement migration flow
+**Remaining:** CLI command + daemon spawn method (~6 hours)
 
-### Phase 4: UI Integration
-1. Add "Create Subtask" button to session input
-2. Show subtask nodes in session tree canvas
-3. Display compliance badges
-4. Build subtask-specific filtering/views
+### Phase 2: User-Triggered Subtasks 🎯 (Primary Implementation)
 
-### Phase 5: Multi-Agent Delegation
-1. Support `--agent` flag for cross-agent subtasks
-2. Test Gemini subtasks from Claude parent
-3. Build agent recommendation system
+1. ❌ Add "Run in Subtask" button to SessionDrawer
+2. ❌ Implement meta-prompt wrapping function
+3. ❌ Handle wrapped prompt → agent execution
+4. ❌ Show child session on canvas with edge to parent
+5. ❌ Add toast notifications for subtask spawn
+
+**Estimated effort:** ~4 hours (mostly UI wiring)
+
+**Blocked by:** Phase 1 (CLI + daemon spawn method)
+
+### Phase 3: Genealogy Visualization
+
+1. ❌ Query genealogy data for parent/child relationships
+2. ❌ Render edges on canvas (parent → child)
+3. ❌ Add spawn depth badges to session cards
+4. ❌ Filter/group by genealogy in session list
+
+**Estimated effort:** ~3 hours
+
+### Phase 4: Refinements & Testing
+
+1. ❌ A/B test meta-prompt variations (verbose vs. concise)
+2. ❌ Track subtask quality metrics (expansion ratio, etc.)
+3. ❌ Add zone-triggered subtasks (wire drop event)
+4. ❌ Cross-agent subtasks (--agent flag support)
+
+**Future iterations based on usage data**
+
+---
+
+## Concrete Next Steps (Post-Phase 2)
+
+**User-Triggered Subtask MVP - 4 pieces:**
+
+### 1. CLI Command: `agor session subtask`
+
+```bash
+# apps/agor-cli/src/commands/session/subtask.ts
+pnpm agor session subtask <parent-session-id> \
+  --prompt "Design PostgreSQL schema for auth" \
+  --agent claude-code \  # Optional, defaults to parent's agent
+  --zone <zone-id> \      # Optional, position in zone
+  --sync                  # Optional, wait for completion
+```
+
+**Implementation:**
+
+```typescript
+export default class SessionSubtask extends Command {
+  static args = {
+    sessionId: Args.string({ required: true }),
+  };
+  static flags = {
+    prompt: Flags.string({ required: true }),
+    agent: Flags.string(),
+    zone: Flags.string(),
+    sync: Flags.boolean({ default: false }),
+  };
+
+  async run() {
+    const { args, flags } = await this.parse(SessionSubtask);
+
+    // Call POST /sessions/:id/spawn
+    const result = await client.service('sessions').spawn(args.sessionId, {
+      prompt: flags.prompt,
+      agent: flags.agent,
+      zoneId: flags.zone,
+      sync: flags.sync,
+    });
+
+    this.log(`Subtask session created: ${shortId(result.session_id)}`);
+    if (flags.sync) {
+      this.log(`Status: ${result.status}`);
+    }
+
+    // Clean socket and exit
+    await cleanupSocket(client);
+  }
+}
+```
+
+**Estimated effort:** 2 hours (copy from existing session commands)
+
+---
+
+### 2. Daemon: Add `spawn` Custom Method
+
+```typescript
+// apps/agor-daemon/src/services/sessions/sessions.class.ts
+
+async spawn(id: SessionID, data: SpawnSubtaskRequest, params: Params) {
+  const parent = await this.get(id);
+
+  // Create child session
+  const child = await this.create({
+    agent: data.agent || parent.agent,
+    repo_id: parent.repo_id,
+    genealogy: {
+      parent_session_id: id,
+      fork_point_task_id: null,
+    },
+    status: 'running',
+  }, params);
+
+  // Position on canvas
+  if (data.zoneId || parent.board_id) {
+    await this.boardObjectsService.create({
+      board_id: parent.board_id,
+      object_type: 'session',
+      object_id: child.session_id,
+      zone_id: data.zoneId,
+    });
+  }
+
+  // Execute initial prompt via Agent SDK
+  const agentClient = this.agentClients[child.agent];
+  const execution = agentClient.getSession(child.session_id).executeTask(data.prompt);
+
+  if (data.sync) {
+    await execution;
+    const updated = await this.get(child.session_id);
+    return { session_id: child.session_id, status: updated.status };
+  }
+
+  return { session_id: child.session_id, status: 'running' };
+}
+```
+
+**Register method:**
+
+```typescript
+// apps/agor-daemon/src/services/sessions/sessions.ts
+export default function (app: Application) {
+  app.use('/sessions', new SessionsService(options), {
+    methods: ['find', 'get', 'create', 'patch', 'remove', 'spawn'], // Add spawn
+    events: [],
+  });
+}
+```
+
+**Estimated effort:** 3 hours (wire existing pieces)
+
+---
+
+### 3. UI: Add "Run in Subtask" Button
+
+```typescript
+// apps/agor-ui/src/components/SessionDrawer.tsx
+
+// Meta-prompt wrapper utility
+function wrapForSubtaskExecution(userPrompt: string, sessionId: string): string {
+  return `SUBTASK DELEGATION MODE
+
+User wants this done in a subtask:
+"""
+${userPrompt}
+"""
+
+YOUR TASK:
+1. Prepare a detailed, comprehensive prompt for a subtask agent (add technical context, specify formats, clarify requirements)
+2. Run: \`agor session subtask ${sessionId} --prompt "YOUR_PREPARED_PROMPT"\`
+3. Tell user the child session ID that was created
+
+EXAMPLE:
+User: "add tests"
+Your prepared prompt: "Write Jest unit tests for auth module: registration validation, login flow, token handling, password hashing. Aim for 80%+ coverage. Match existing test patterns."
+Command: \`agor session subtask ${sessionId} --prompt "Write Jest unit tests for auth module: registration validation, login flow, token handling, password hashing. Aim for 80%+ coverage. Match existing test patterns."\`
+
+Make your prepared prompt MORE detailed than the user's original request.
+Proceed now.`;
+}
+
+// UI Component
+const handleRunInSubtask = async () => {
+  const wrappedPrompt = wrapForSubtaskExecution(inputValue, session.session_id);
+
+  // Send wrapped prompt to agent (same as normal send)
+  await sendMessage(wrappedPrompt);
+
+  // Clear input
+  setInputValue('');
+
+  // Toast notification
+  message.info('Subtask delegation prompt sent to agent');
+};
+
+// Render
+<Space>
+  <Button onClick={handleSend}>Send</Button>
+  <Button
+    type="primary"
+    icon={<RocketOutlined />}
+    onClick={handleRunInSubtask}
+  >
+    Run in Subtask
+  </Button>
+</Space>
+```
+
+**Estimated effort:** 2 hours (UI wiring + wrapper function)
+
+---
+
+### 4. Canvas: Show Genealogy Edges
+
+```typescript
+// apps/agor-ui/src/components/Board/BoardCanvas.tsx
+
+// Query genealogy relationships
+const edges = useMemo(() => {
+  return sessions
+    .filter(s => s.genealogy?.parent_session_id)
+    .map(child => ({
+      id: `${child.genealogy.parent_session_id}-${child.session_id}`,
+      source: child.genealogy.parent_session_id,
+      target: child.session_id,
+      type: 'smoothstep',
+      animated: child.status === 'running',
+      label: 'subtask',
+      style: { stroke: '#1890ff' },
+    }));
+}, [sessions]);
+
+// Pass to ReactFlow
+<ReactFlow nodes={nodes} edges={edges} ... />
+```
+
+**Estimated effort:** 2 hours (genealogy query + edge rendering)
+
+---
+
+## Total MVP Effort
+
+**~9 hours of focused work**
+
+1. CLI command: 2 hours
+2. Daemon spawn method: 3 hours
+3. UI button + meta-prompt: 2 hours
+4. Canvas genealogy edges: 2 hours
+
+---
+
+## Validation Plan
+
+1. ✅ **Create parent session** via UI
+2. ✅ **Type prompt** in SessionDrawer: "Design PostgreSQL auth schema"
+3. ✅ **Click "Run in Subtask"** button
+4. ✅ **Verify agent receives meta-prompt** (check conversation)
+5. ✅ **Verify agent runs command**: `agor session subtask {id} --prompt "..."`
+6. ✅ **Verify child session appears** on canvas within 5 seconds
+7. ✅ **Verify edge renders** from parent → child
+8. ✅ **Click into child session** and verify conversation is accessible
+9. ✅ **Verify child is forkable** independently of parent
+10. ✅ **Measure expansion ratio**: prepared prompt length / user prompt length >2x
 
 ---
 
@@ -845,17 +1046,34 @@ Session A
 
 ## Key Insights
 
-**The Big Bet:**
-Prompt engineering + CLI injection can make agents prefer Agor subtasks over native tools.
+**The Winning Approach: User-Triggered Meta-Prompts**
 
-**Why It Should Work:**
-1. Agents are instruction-followers (especially Claude)
-2. Clear examples in prompts improve compliance
-3. Bash tool access means agents can run `agor` commands
-4. Benefits are tangible (observability, forking, reports)
+Instead of hoping agents organically decide to use subtasks, we give users explicit control with a "Run in Subtask" button that wraps their prompt in meta-instructions.
 
-**Fallback:**
-Even if compliance is imperfect, we can detect and migrate native subtasks to Agor post-hoc.
+**Why This Works:**
 
-**The Value:**
-Agor-tracked subtasks turn ephemeral agent delegations into **persistent, forkable, reportable sessions** - core to the session tree vision.
+1. **Deterministic** - User intent is clear, no guessing if agent will delegate
+2. **High compliance** - Meta-instructions force the behavior (>90% expected)
+3. **Value-add** - Agent enriches user's prompt before spawning subtask
+4. **Simple** - No SDK modifications, system prompt injection, or tool interception needed
+5. **Agent-agnostic** - Works with any agent that has bash/command execution
+
+**The Value Proposition:**
+
+User types: "add tests"
+
+Agent prepares: "Write Jest unit tests for auth module: registration validation, login flow with correct/incorrect credentials, token generation/validation, password hashing security. Aim for 80%+ coverage. Match existing patterns in tests/ directory."
+
+Then spawns: `agor session subtask {id} --prompt "{prepared_prompt}"`
+
+Result:
+
+- ✅ User gets detailed, contextualized subtask
+- ✅ Full conversation history in child session
+- ✅ Can fork if approach is wrong
+- ✅ Can share subtask with team
+- ✅ Visual genealogy tree on canvas
+
+**The Core Innovation:**
+
+Agor-tracked subtasks turn **ad-hoc delegation** into **persistent, observable, forkable sessions** - making every spawned task a first-class artifact in the session tree.
