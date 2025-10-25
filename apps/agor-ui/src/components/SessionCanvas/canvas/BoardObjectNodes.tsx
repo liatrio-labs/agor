@@ -441,6 +441,9 @@ const CommentNodeComponent = ({ data }: { data: CommentNodeData }) => {
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'center',
+          // Offset so pin tip (bottom-center) is the anchor point
+          marginLeft: '-18px', // Center horizontally (half width)
+          marginTop: '-48px', // Position tip at coordinate (full height)
         }}
       >
         {/* Circular top part */}
