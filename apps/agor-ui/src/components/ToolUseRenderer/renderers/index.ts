@@ -50,7 +50,7 @@ export type ToolRenderer = React.FC<ToolRendererProps>;
  */
 export const TOOL_RENDERERS = new Map<string, ToolRenderer>([
   // Claude Code tools
-  ['TodoWrite', TodoListRenderer as ToolRenderer],
+  ['TodoWrite', TodoListRenderer as unknown as ToolRenderer],
 
   // Add more custom renderers here:
   // ['Bash', BashRenderer],

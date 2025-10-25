@@ -6,7 +6,6 @@
  */
 
 import type {
-  AgenticTool,
   AgenticToolName,
   MCPServer,
   PermissionMode,
@@ -15,6 +14,18 @@ import type {
   WorktreeID,
   ZoneTrigger,
 } from '@agor/core/types';
+
+// UI-only type for agent selection (different from AgenticTool which has UUIDv7 ID)
+interface AgenticToolOption {
+  id: string; // AgenticToolName as string
+  name: string;
+  icon: string;
+  installed: boolean;
+  installable?: boolean;
+  version?: string;
+  description?: string;
+}
+
 import { DownOutlined } from '@ant-design/icons';
 import { Alert, Collapse, Form, Modal, Radio, Select, Space, Typography } from 'antd';
 import Handlebars from 'handlebars';
@@ -34,7 +45,7 @@ interface ZoneTriggerModalProps {
   boardName?: string;
   boardDescription?: string;
   boardCustomContext?: Record<string, unknown>;
-  availableAgents: AgenticTool[];
+  availableAgents: AgenticToolOption[];
   mcpServers: MCPServer[];
   onExecute: (params: {
     sessionId: string | 'new';

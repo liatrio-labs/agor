@@ -564,31 +564,57 @@ export class ClaudePromptService {
       options.apiKey = this.apiKey || process.env.ANTHROPIC_API_KEY;
     }
 
-    // Add optional resume if session exists
-    if (resume && session?.sdk_session_id) {
-      // Check if session might be stale (prevents exit code 1 errors)
-      const hoursSinceUpdate = session.last_updated
-        ? (Date.now() - new Date(session.last_updated).getTime()) / (1000 * 60 * 60)
-        : 999;
+    // Handle resume, fork, and spawn cases
+    if (resume) {
+      // CASE 1: Fork/Spawn on first prompt (has genealogy, no sdk_session_id yet)
+      const parentSessionId =
+        session.genealogy?.forked_from_session_id || session.genealogy?.parent_session_id;
 
-      const isLikelyStale =
-        hoursSinceUpdate > 24 || // Session older than 24 hours
-        !session.worktree_id; // No worktree = can't resume properly
+      if (parentSessionId && !session.sdk_session_id && this.sessionsRepo) {
+        // This is a fork/spawn - load parent's sdk_session_id
+        const parentSession = await this.sessionsRepo.findById(parentSessionId);
 
-      if (isLikelyStale) {
-        console.warn(
-          `⚠️  Resume session ${session.sdk_session_id.substring(0, 8)} appears stale (${Math.round(hoursSinceUpdate)}h old) - starting fresh`
-        );
-
-        // Clear stale session ID to prevent exit code 1
-        if (this.sessionsRepo) {
-          await this.sessionsRepo.update(sessionId, { sdk_session_id: undefined });
+        if (parentSession?.sdk_session_id) {
+          options.resume = parentSession.sdk_session_id;
+          options.forkSession = true; // SDK will create new session ID from parent's history
+          console.log(
+            `🍴 Forking from parent session: ${parentSession.sdk_session_id.substring(0, 8)}`
+          );
+          console.log(`   SDK will return new session ID for this fork`);
+        } else {
+          console.warn(
+            `⚠️  Parent session ${parentSessionId.substring(0, 8)} has no sdk_session_id - starting fresh`
+          );
         }
-        // Don't set options.resume - start fresh
-      } else {
-        options.resume = session.sdk_session_id;
-        console.log(`   Resuming SDK session: ${session.sdk_session_id.substring(0, 8)}`);
       }
+      // CASE 2: Normal resume (session has its own sdk_session_id)
+      else if (session?.sdk_session_id) {
+        // Check if session might be stale (prevents exit code 1 errors)
+        const hoursSinceUpdate = session.last_updated
+          ? (Date.now() - new Date(session.last_updated).getTime()) / (1000 * 60 * 60)
+          : 999;
+
+        const isLikelyStale =
+          hoursSinceUpdate > 24 || // Session older than 24 hours
+          !session.worktree_id; // No worktree = can't resume properly
+
+        if (isLikelyStale) {
+          console.warn(
+            `⚠️  Resume session ${session.sdk_session_id.substring(0, 8)} appears stale (${Math.round(hoursSinceUpdate)}h old) - starting fresh`
+          );
+
+          // Clear stale session ID to prevent exit code 1
+          if (this.sessionsRepo) {
+            await this.sessionsRepo.update(sessionId, { sdk_session_id: undefined });
+          }
+          // Don't set options.resume - start fresh
+        } else {
+          options.resume = session.sdk_session_id;
+          console.log(`   Resuming SDK session: ${session.sdk_session_id.substring(0, 8)}`);
+        }
+      }
+      // CASE 3: Fresh session (no genealogy, no sdk_session_id)
+      // -> options.resume not set, SDK will start fresh and return new session ID
     }
 
     // Fetch and configure MCP servers for this session (hierarchical scoping)

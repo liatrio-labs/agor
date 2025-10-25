@@ -60,6 +60,8 @@ interface SessionCanvasProps {
   onTaskClick?: (taskId: string) => void;
   onSessionUpdate?: (sessionId: string, updates: Partial<Session>) => void;
   onSessionDelete?: (sessionId: string) => void;
+  onForkSession?: (sessionId: string, prompt: string) => Promise<void>;
+  onSpawnSession?: (sessionId: string, prompt: string) => Promise<void>;
   onUpdateSessionMcpServers?: (sessionId: string, mcpServerIds: string[]) => void;
   onOpenSettings?: (sessionId: string) => void;
   onCreateSessionForWorktree?: (worktreeId: string) => void;
@@ -117,6 +119,8 @@ interface WorktreeNodeData {
   onTaskClick?: (taskId: string) => void;
   onSessionClick?: (sessionId: string) => void;
   onCreateSession?: (worktreeId: string) => void;
+  onForkSession?: (sessionId: string, prompt: string) => Promise<void>;
+  onSpawnSession?: (sessionId: string, prompt: string) => Promise<void>;
   onDelete?: (worktreeId: string) => void;
   onOpenSettings?: (worktreeId: string) => void;
   onOpenTerminal?: (commands: string[]) => void;
@@ -141,6 +145,8 @@ const WorktreeNode = ({ data }: { data: WorktreeNodeData }) => {
         onTaskClick={data.onTaskClick}
         onSessionClick={data.onSessionClick}
         onCreateSession={data.onCreateSession}
+        onForkSession={data.onForkSession}
+        onSpawnSession={data.onSpawnSession}
         onDelete={data.onDelete}
         onOpenSettings={data.onOpenSettings}
         onOpenTerminal={data.onOpenTerminal}
@@ -178,6 +184,8 @@ const SessionCanvas = ({
   onTaskClick,
   onSessionUpdate,
   onSessionDelete,
+  onForkSession,
+  onSpawnSession,
   onUpdateSessionMcpServers,
   onOpenSettings,
   onCreateSessionForWorktree,
@@ -371,6 +379,8 @@ const SessionCanvas = ({
           onTaskClick,
           onSessionClick,
           onCreateSession: onCreateSessionForWorktree,
+          onForkSession,
+          onSpawnSession,
           onDelete: onDeleteWorktree,
           onOpenSettings: onOpenWorktree,
           onOpenTerminal,
@@ -393,6 +403,8 @@ const SessionCanvas = ({
     onSessionClick,
     onTaskClick,
     onCreateSessionForWorktree,
+    onForkSession,
+    onSpawnSession,
     onDeleteWorktree,
     onOpenWorktree,
     onOpenTerminal,

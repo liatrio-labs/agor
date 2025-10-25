@@ -340,6 +340,8 @@ export const App: React.FC<AppProps> = ({
           onSessionClick={handleSessionClick}
           onSessionUpdate={onUpdateSession}
           onSessionDelete={onDeleteSession}
+          onForkSession={onForkSession}
+          onSpawnSession={onSpawnSession}
           onUpdateSessionMcpServers={onUpdateSessionMcpServers}
           onOpenSettings={sessionId => {
             setSessionSettingsId(sessionId);

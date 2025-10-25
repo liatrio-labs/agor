@@ -3,4 +3,5 @@ export default {
   guide: 'Guide',
   cli: 'CLI Reference',
   'api-reference': 'API Reference',
+  faq: 'FAQ',
 };

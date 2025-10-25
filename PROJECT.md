@@ -32,6 +32,7 @@ Simple todo list for launch preparation.
 - [ ] Token count & cost tracking ($ per task/session)
 - [ ] Typing indicators in prompt input
 - [ ] Worktree CLI commands (`agor worktree list/create/delete`)
+- [ ] Terminal shortcut: Command palette shortcut to open terminal in worktree path (without opening WorktreeModal)
 
 ### Advanced Features
 
@@ -55,7 +56,7 @@ See [context/explorations/](context/explorations/) for detailed designs:
 - **CLI session sync** - Keep local CLI sessions in sync with Agor for seamless solo-to-collab handoff
 - enhance around SDK advanced features, try to meet CLI parity as much as possible (support Claude Agents, slash commands, etc)
 - Cloud deployment (PostgreSQL, Turso/Supabase, hosted version)
-- Advanced worktree UX (see `worktree-ux-design.md`)
 - Background job system (see `async-jobs.md`)
 - Subtask orchestration (see `subtask-orchestration.md`)
 - [ ] Keyboard shortcuts for board navigation
+- Terminal persistence across restarts (?)

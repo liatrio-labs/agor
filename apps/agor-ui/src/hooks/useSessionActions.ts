@@ -88,7 +88,7 @@ export function useSessionActions(client: AgorClient | null): UseSessionActionsR
       setCreating(true);
       setError(null);
 
-      // Call custom fork endpoint
+      // Call custom fork endpoint to create the forked session
       const response = await fetch(`${getDaemonUrl()}/sessions/${sessionId}/fork`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,6 +100,12 @@ export function useSessionActions(client: AgorClient | null): UseSessionActionsR
       }
 
       const forkedSession = await response.json();
+
+      // Send the prompt to the forked session to actually execute it
+      await client.service(`sessions/${forkedSession.session_id}/prompt`).create({
+        prompt,
+      });
+
       return forkedSession;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fork session';
@@ -121,7 +127,7 @@ export function useSessionActions(client: AgorClient | null): UseSessionActionsR
       setCreating(true);
       setError(null);
 
-      // Call custom spawn endpoint
+      // Call custom spawn endpoint to create the spawned session
       const response = await fetch(`${getDaemonUrl()}/sessions/${sessionId}/spawn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,6 +139,12 @@ export function useSessionActions(client: AgorClient | null): UseSessionActionsR
       }
 
       const spawnedSession = await response.json();
+
+      // Send the prompt to the spawned session to actually execute it
+      await client.service(`sessions/${spawnedSession.session_id}/prompt`).create({
+        prompt,
+      });
+
       return spawnedSession;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to spawn session';

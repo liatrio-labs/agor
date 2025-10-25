@@ -48,8 +48,10 @@ export interface SettingsModalProps {
       createBranch: boolean;
       sourceBranch: string;
       pullLatest: boolean;
+      issue_url?: string;
+      pull_request_url?: string;
     }
-  ) => Promise<void>;
+  ) => Promise<Worktree | null>;
   onStartEnvironment?: (worktreeId: string) => void;
   onStopEnvironment?: (worktreeId: string) => void;
   onCreateUser?: (data: CreateUserInput) => void;

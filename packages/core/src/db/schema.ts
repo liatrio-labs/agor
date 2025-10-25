@@ -53,7 +53,9 @@ export const sessions = sqliteTable(
         // Genealogy details (children array, fork/spawn points)
         genealogy: {
           fork_point_task_id?: string;
+          fork_point_message_index?: number;
           spawn_point_task_id?: string;
+          spawn_point_message_index?: number;
           children: string[];
         };
 

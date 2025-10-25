@@ -26,9 +26,7 @@ This directory contains modular knowledge files that document Agor's concepts, a
 - **[auth.md](concepts/auth.md)** - Authentication & authorization, anonymous-first, JWT/Local strategies, user attribution
 - **[multiplayer.md](concepts/multiplayer.md)** - Real-time collaboration, facepile, cursor swarm, presence indicators
 - **[board-objects.md](concepts/board-objects.md)** - Board layout system, zones, session pinning, zone triggers with Handlebars
-- **[worktree-centric-prd.md](concepts/worktree-centric-prd.md)** - Worktree normalization (dedicated table), WorktreeModal design with 5 tabs, environment management
-- **[worktree-board-design.md](concepts/worktree-board-design.md)** - Worktree-centric boards, WorktreeCard design, zone trigger UX with session selection
-- **[worktree-board-migration-plan.md](concepts/worktree-board-migration-plan.md)** - High-level migration plan from session-centric to worktree-centric boards
+- **[worktrees.md](concepts/worktrees.md)** - Worktree-centric architecture: data model, worktree-centric boards, WorktreeModal (5 tabs), environments, terminal integration
 - **[session-worktree-attribute-migration.md](concepts/session-worktree-attribute-migration.md)** - Data attribute migration analysis (issue_url, pull_request_url, etc.)
 - **[mcp-integration.md](concepts/mcp-integration.md)** - MCP server management, CRUD UI/CLI, session-level selection
 - **[permissions.md](concepts/permissions.md)** - Permission system, task-centric approval, audit trails

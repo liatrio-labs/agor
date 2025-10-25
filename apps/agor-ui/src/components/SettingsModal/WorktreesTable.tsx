@@ -257,10 +257,12 @@ export const WorktreesTable: React.FC<WorktreesTableProps> = ({
                         },
                       };
                       const url = renderTemplate(
-                        repo.environment_config.health_check.url_template,
+                        repo.environment_config?.health_check?.url_template || '',
                         templateContext
                       );
-                      window.open(url, '_blank');
+                      if (url) {
+                        window.open(url, '_blank');
+                      }
                     }}
                     style={{ padding: '0 4px' }}
                   />

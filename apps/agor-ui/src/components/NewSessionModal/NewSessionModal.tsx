@@ -1,5 +1,17 @@
-import type { AgenticTool, AgenticToolName, MCPServer, Worktree } from '@agor/core/types';
+import type { AgenticToolName, MCPServer, Worktree } from '@agor/core/types';
 import { getDefaultPermissionMode } from '@agor/core/types';
+
+// UI-only type for agent selection (different from AgenticTool which has UUIDv7 ID)
+interface AgenticToolOption {
+  id: string; // AgenticToolName as string
+  name: string;
+  icon: string;
+  installed: boolean;
+  installable?: boolean;
+  version?: string;
+  description?: string;
+}
+
 import { DownOutlined } from '@ant-design/icons';
 import { Alert, Collapse, Form, Input, Modal, Typography } from 'antd';
 import { useEffect, useState } from 'react';
@@ -25,7 +37,7 @@ export interface NewSessionModalProps {
   open: boolean;
   onClose: () => void;
   onCreate: (config: NewSessionConfig) => void;
-  availableAgents: AgenticTool[];
+  availableAgents: AgenticToolOption[];
   worktreeId: string; // Required - the worktree to create the session in
   worktree?: Worktree; // Optional - worktree details for display
   mcpServers?: MCPServer[];

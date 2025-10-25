@@ -7,17 +7,36 @@ import {
   DeleteOutlined,
   DragOutlined,
   EditOutlined,
+  EllipsisOutlined,
   ExpandOutlined,
   FolderOpenOutlined,
+  ForkOutlined,
   LinkOutlined,
   PlusOutlined,
   PushpinFilled,
+  SubnodeOutlined,
 } from '@ant-design/icons';
-import { Badge, Button, Card, Collapse, Space, Spin, Tag, Typography, theme } from 'antd';
+import type { MenuProps } from 'antd';
+import {
+  Badge,
+  Button,
+  Card,
+  Collapse,
+  Dropdown,
+  Space,
+  Spin,
+  Tag,
+  Tree,
+  Typography,
+  theme,
+} from 'antd';
+import { useMemo, useState } from 'react';
 import { DeleteWorktreePopconfirm } from '../DeleteWorktreePopconfirm';
+import { type ForkSpawnAction, ForkSpawnModal } from '../ForkSpawnModal';
 import { CreatedByTag } from '../metadata';
 import { IssuePill, PullRequestPill } from '../Pill';
 import { ToolIcon } from '../ToolIcon';
+import { buildSessionTree, type SessionTreeNode } from './buildSessionTree';
 
 const WORKTREE_CARD_MAX_WIDTH = 600;
 
@@ -30,6 +49,8 @@ interface WorktreeCardProps {
   onTaskClick?: (taskId: string) => void;
   onSessionClick?: (sessionId: string) => void;
   onCreateSession?: (worktreeId: string) => void;
+  onForkSession?: (sessionId: string, prompt: string) => Promise<void>;
+  onSpawnSession?: (sessionId: string, prompt: string) => Promise<void>;
   onDelete?: (worktreeId: string, deleteFromFilesystem: boolean) => void;
   onOpenSettings?: (worktreeId: string) => void;
   onOpenTerminal?: (commands: string[]) => void;
@@ -49,6 +70,8 @@ const WorktreeCard = ({
   onTaskClick,
   onSessionClick,
   onCreateSession,
+  onForkSession,
+  onSpawnSession,
   onDelete,
   onOpenSettings,
   onOpenTerminal,
@@ -60,71 +83,131 @@ const WorktreeCard = ({
 }: WorktreeCardProps) => {
   const { token } = theme.useToken();
 
+  // Fork/Spawn modal state
+  const [forkSpawnModal, setForkSpawnModal] = useState<{
+    open: boolean;
+    action: ForkSpawnAction;
+    session: Session | null;
+  }>({
+    open: false,
+    action: 'fork',
+    session: null,
+  });
+
+  // Handle fork/spawn modal confirm
+  const handleForkSpawnConfirm = async (prompt: string) => {
+    if (!forkSpawnModal.session) return;
+
+    if (forkSpawnModal.action === 'fork') {
+      await onForkSession?.(forkSpawnModal.session.session_id, prompt);
+    } else {
+      await onSpawnSession?.(forkSpawnModal.session.session_id, prompt);
+    }
+  };
+
+  // Build genealogy tree structure
+  const sessionTreeData = useMemo(() => buildSessionTree(sessions), [sessions]);
+
+  // Render function for tree nodes (our rich session cards)
+  const renderSessionNode = (node: SessionTreeNode) => {
+    const session = node.session;
+
+    // Dropdown menu items for session actions
+    const sessionMenuItems: MenuProps['items'] = [
+      {
+        key: 'fork',
+        icon: <ForkOutlined />,
+        label: 'Fork Session',
+        onClick: () => {
+          setForkSpawnModal({
+            open: true,
+            action: 'fork',
+            session,
+          });
+        },
+      },
+      {
+        key: 'spawn',
+        icon: <SubnodeOutlined />,
+        label: 'Spawn Subtask',
+        onClick: () => {
+          setForkSpawnModal({
+            open: true,
+            action: 'spawn',
+            session,
+          });
+        },
+      },
+    ];
+
+    return (
+      <div
+        style={{
+          border: `1px solid rgba(255, 255, 255, 0.1)`,
+          borderRadius: 4,
+          padding: 8,
+          background: 'rgba(0, 0, 0, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          cursor: 'pointer',
+          marginBottom: 4,
+        }}
+        onClick={() => onSessionClick?.(session.session_id)}
+        onContextMenu={e => {
+          // Show fork/spawn menu on right-click if handlers exist
+          if (onForkSession || onSpawnSession) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <Space size={4} align="center" style={{ flex: 1, minWidth: 0 }}>
+          <ToolIcon tool={session.agentic_tool} size={20} />
+          <Typography.Text
+            strong
+            style={{
+              fontSize: 12,
+              flex: 1,
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+            }}
+          >
+            {session.title || session.description || session.agentic_tool}
+          </Typography.Text>
+        </Space>
+
+        {/* Status indicator - fixed width to prevent layout shift */}
+        <div style={{ width: 24, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          {session.status === TaskStatus.RUNNING ? (
+            <Spin size="small" />
+          ) : (
+            <Badge
+              status={
+                session.status === TaskStatus.COMPLETED
+                  ? 'success'
+                  : session.status === TaskStatus.FAILED
+                    ? 'error'
+                    : 'default'
+              }
+            />
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Session list content (collapsible) - only used when sessions exist
   const sessionListContent = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {sessions.map(session => (
-        <div
-          key={session.session_id}
-          style={{
-            border: `1px solid rgba(255, 255, 255, 0.1)`,
-            borderRadius: 4,
-            padding: 8,
-            background: 'rgba(0, 0, 0, 0.2)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            cursor: 'pointer',
-          }}
-          onClick={() => onSessionClick?.(session.session_id)}
-        >
-          <Space size={4} align="start" style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ marginTop: 2 }}>
-              <ToolIcon tool={session.agentic_tool} size={20} />
-            </div>
-            <Typography.Text
-              strong
-              style={{
-                fontSize: 12,
-                flex: 1,
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word',
-              }}
-            >
-              {session.title || session.description || session.agentic_tool}
-            </Typography.Text>
-            <div style={{ marginTop: 2 }}>
-              {session.status === TaskStatus.RUNNING ? (
-                <Spin size="small" />
-              ) : (
-                <Badge
-                  status={
-                    session.status === TaskStatus.COMPLETED
-                      ? 'success'
-                      : session.status === TaskStatus.FAILED
-                        ? 'error'
-                        : 'default'
-                  }
-                />
-              )}
-            </div>
-          </Space>
-
-          <div style={{ marginTop: 2 }}>
-            <Button
-              type="text"
-              size="small"
-              icon={<ExpandOutlined />}
-              onClick={e => {
-                e.stopPropagation();
-                onSessionClick?.(session.session_id);
-              }}
-              title="Open session"
-            />
-          </div>
-        </div>
-      ))}
-    </div>
+    <Tree
+      treeData={sessionTreeData}
+      defaultExpandAll
+      showLine
+      showIcon={false}
+      selectable={false}
+      titleRender={renderSessionNode}
+      style={{
+        background: 'transparent',
+      }}
+    />
   );
 
   // Session list collapse header
@@ -331,9 +414,27 @@ const WorktreeCard = ({
             ]}
             ghost
             style={{ marginTop: 8 }}
+            styles={{
+              content: { padding: 0 },
+            }}
           />
         )}
       </div>
+
+      {/* Fork/Spawn Modal */}
+      <ForkSpawnModal
+        open={forkSpawnModal.open}
+        action={forkSpawnModal.action}
+        session={forkSpawnModal.session}
+        onConfirm={handleForkSpawnConfirm}
+        onCancel={() =>
+          setForkSpawnModal({
+            open: false,
+            action: 'fork',
+            session: null,
+          })
+        }
+      />
     </Card>
   );
 };

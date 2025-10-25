@@ -1,10 +1,20 @@
-import type { AgenticTool } from '@agor/core/types';
 import { CheckCircleOutlined, DownloadOutlined } from '@ant-design/icons';
 import { Button, Card, Space, Tag, Typography } from 'antd';
 import { ToolIcon } from '../ToolIcon';
 
+// UI-only type for agent selection (different from AgenticTool which has UUIDv7 ID)
+interface AgenticToolOption {
+  id: string; // AgenticToolName as string
+  name: string;
+  icon: string;
+  installed: boolean;
+  installable?: boolean;
+  version?: string;
+  description?: string;
+}
+
 export interface AgentSelectionCardProps {
-  agent: AgenticTool;
+  agent: AgenticToolOption;
   selected?: boolean;
   onClick?: () => void;
   onInstall?: () => void;

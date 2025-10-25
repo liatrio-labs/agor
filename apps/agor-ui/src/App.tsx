@@ -558,7 +558,7 @@ function AppContent() {
     try {
       message.loading({ content: 'Creating worktree...', key: 'create-worktree', duration: 0 });
 
-      const worktree = await client.service(`repos/${repoId}/worktrees`).create({
+      const worktree = (await client.service(`repos/${repoId}/worktrees`).create({
         name: data.name,
         ref: data.ref,
         createBranch: data.createBranch,
@@ -566,7 +566,7 @@ function AppContent() {
         sourceBranch: data.sourceBranch, // Base new branch on specified source branch
         issue_url: data.issue_url,
         pull_request_url: data.pull_request_url,
-      });
+      })) as import('@agor/core/types').Worktree;
 
       message.success({ content: 'Worktree created successfully!', key: 'create-worktree' });
       return worktree;
@@ -704,10 +704,6 @@ function AppContent() {
         users={users}
         mcpServers={mcpServers}
         sessionMcpServerIds={sessionMcpServerIds}
-        // biome-ignore lint/suspicious/noExplicitAny: Type incompatibility between core and UI RepoReferenceOption
-        worktreeOptions={worktreeOptions as any}
-        // biome-ignore lint/suspicious/noExplicitAny: Type incompatibility between core and UI RepoReferenceOption
-        repoOptions={repoOptions as any}
         initialBoardId={boards[0]?.board_id}
         onCreateSession={handleCreateSession}
         onForkSession={handleForkSession}
