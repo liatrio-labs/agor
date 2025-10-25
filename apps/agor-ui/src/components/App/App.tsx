@@ -424,6 +424,7 @@ export const App: React.FC<AppProps> = ({
             }}
             onDeleteWorktree={onDeleteWorktree}
             onOpenTerminal={handleOpenTerminal}
+            onOpenCommentsPanel={() => setCommentsPanelCollapsed(false)}
           />
           <NewSessionButton onClick={() => setNewWorktreeModalOpen(true)} />
         </div>

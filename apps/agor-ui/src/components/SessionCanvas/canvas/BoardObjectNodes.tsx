@@ -433,7 +433,7 @@ const CommentNodeComponent = ({ data }: { data: CommentNodeData }) => {
       onMouseLeave={() => setIsHovered(false)}
       style={{
         position: 'relative',
-        cursor: 'pointer',
+        cursor: 'grab',
         // Combine scale with translate to offset pin tip to anchor point
         transform: `scale(${scale}) translate(${PIN_OFFSET_X}px, ${PIN_OFFSET_Y}px)`,
         transformOrigin: 'top left',
@@ -506,39 +506,38 @@ const CommentNodeComponent = ({ data }: { data: CommentNodeData }) => {
         )}
       </div>
 
-      {/* Hover tooltip - shows preview */}
+      {/* Hover tooltip - simple who/when/what preview */}
       {isHovered && (
         <div
           style={{
             position: 'absolute',
             left: '40px',
             top: '0',
-            minWidth: '280px',
-            maxWidth: '360px',
+            minWidth: '240px',
+            maxWidth: '320px',
             background: token.colorBgElevated,
-            border: `1px solid ${pinColor}`,
+            border: `1px solid ${token.colorBorder}`,
             borderRadius: token.borderRadiusLG,
             padding: '12px',
             boxShadow: token.boxShadow,
             zIndex: 1000,
             pointerEvents: 'none',
-            animation: 'fadeIn 0.15s ease-out',
           }}
         >
-          {/* User and status header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 8,
-              paddingBottom: 8,
-              borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            }}
-          >
-            <div style={{ fontSize: 16 }}>{user?.emoji || '💬'}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: token.colorText }}>
+          {/* Who and when */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 14 }}>{user?.emoji || '💬'}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: token.colorText,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {user?.name || 'Anonymous'}
               </div>
               <div style={{ fontSize: 11, color: token.colorTextSecondary }}>
@@ -550,65 +549,19 @@ const CommentNodeComponent = ({ data }: { data: CommentNodeData }) => {
                 })}
               </div>
             </div>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: pinColor,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}
-            >
-              {comment.resolved ? 'Resolved' : 'Open'}
-            </div>
           </div>
 
-          {/* Content preview */}
+          {/* What - content preview */}
           <div
             style={{
               fontSize: 13,
               color: token.colorText,
               lineHeight: '1.5',
               wordBreak: 'break-word',
-              marginBottom: 8,
             }}
           >
             {preview}
             {hasMore && <span style={{ color: token.colorTextSecondary }}>...</span>}
-          </div>
-
-          {/* Footer with reactions and reply count */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingTop: 8,
-              borderTop: `1px solid ${token.colorBorderSecondary}`,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {comment.reactions && comment.reactions.length > 0 && (
-                <div style={{ fontSize: 13 }}>
-                  {comment.reactions.slice(0, 3).map(r => (
-                    <span key={`${r.user_id}-${r.emoji}`}>{r.emoji}</span>
-                  ))}
-                  {comment.reactions.length > 3 && (
-                    <span style={{ fontSize: 11, color: token.colorTextSecondary, marginLeft: 2 }}>
-                      +{comment.reactions.length - 3}
-                    </span>
-                  )}
-                </div>
-              )}
-              {replyCount > 0 && (
-                <div style={{ fontSize: 11, color: token.colorTextSecondary }}>
-                  {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
-                </div>
-              )}
-            </div>
-            <div style={{ fontSize: 11, color: token.colorTextTertiary, fontStyle: 'italic' }}>
-              Click to view
-            </div>
           </div>
         </div>
       )}

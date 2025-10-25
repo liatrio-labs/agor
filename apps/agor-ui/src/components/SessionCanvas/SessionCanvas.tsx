@@ -1,7 +1,7 @@
 import type { AgorClient } from '@agor/core/api';
 import type { BoardID, MCPServer, User, WorktreeID, ZoneTrigger } from '@agor/core/types';
 import { BorderOutlined, CommentOutlined, DeleteOutlined, SelectOutlined } from '@ant-design/icons';
-import { Button, Input, Modal, Popover, Typography } from 'antd';
+import { Button, Input, Modal, Popover, Typography, theme } from 'antd';
 import Handlebars from 'handlebars';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -69,6 +69,7 @@ interface SessionCanvasProps {
   onOpenWorktree?: (worktreeId: string) => void;
   onDeleteWorktree?: (worktreeId: string, deleteFromFilesystem: boolean) => void;
   onOpenTerminal?: (commands: string[]) => void;
+  onOpenCommentsPanel?: () => void;
 }
 
 interface SessionNodeData {
@@ -195,7 +196,10 @@ const SessionCanvas = ({
   onOpenWorktree,
   onDeleteWorktree,
   onOpenTerminal,
+  onOpenCommentsPanel,
 }: SessionCanvasProps) => {
+  const { token } = theme.useToken();
+
   // Tool state for canvas annotations
   const [activeTool, setActiveTool] = useState<'select' | 'zone' | 'comment' | 'eraser'>('select');
 
@@ -505,8 +509,8 @@ const SessionCanvas = ({
             replyCount: replyCount.get(comment.comment_id) || 0,
             user,
             onClick: (commentId: string) => {
-              // TODO: Phase 2 - open comments panel and scroll to comment
-              console.log('Clicked comment:', commentId);
+              // Open comments panel if closed
+              onOpenCommentsPanel?.();
             },
           },
         });
@@ -514,7 +518,7 @@ const SessionCanvas = ({
     }
 
     return nodes;
-  }, [comments, users]);
+  }, [comments, users, onOpenCommentsPanel]);
 
   // Sync SESSION nodes only (don't trigger on zone changes)
   useEffect(() => {
@@ -1224,7 +1228,8 @@ const SessionCanvas = ({
         nodesConnectable={false}
         elementsSelectable={true}
         panOnDrag={activeTool === 'select'}
-        className={`dark tool-mode-${activeTool}`}
+        colorMode="dark"
+        className={`tool-mode-${activeTool}`}
       >
         <Background />
         <Controls position="top-left" showInteractive={false}>
@@ -1272,9 +1277,9 @@ const SessionCanvas = ({
             }}
             title="Eraser (E) - Click to toggle"
             style={{
-              borderLeft: activeTool === 'eraser' ? '3px solid #ff4d4f' : 'none',
-              color: activeTool === 'eraser' ? '#ff4d4f' : 'inherit',
-              backgroundColor: activeTool === 'eraser' ? '#fff1f0' : 'transparent',
+              borderLeft: activeTool === 'eraser' ? `3px solid ${token.colorError}` : 'none',
+              color: activeTool === 'eraser' ? token.colorError : 'inherit',
+              backgroundColor: activeTool === 'eraser' ? `${token.colorError}15` : 'transparent',
             }}
           >
             <DeleteOutlined style={{ fontSize: '16px' }} />
@@ -1305,6 +1310,12 @@ const SessionCanvas = ({
           }}
           pannable
           zoomable
+          style={{
+            backgroundColor: token.colorBgElevated,
+            border: `1px solid ${token.colorBorder}`,
+          }}
+          maskColor={`${token.colorBgMask}40`}
+          bgColor={token.colorBgContainer}
         />
       </ReactFlow>
 
