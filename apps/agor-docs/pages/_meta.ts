@@ -1,5 +1,12 @@
 export default {
-  index: 'Home',
+  index: {
+    title: 'Home',
+    type: 'page',
+    display: 'hidden', // Hide from sidebar
+    theme: {
+      layout: 'raw', // Full page layout without sidebars/navbar
+    },
+  },
   guide: 'Guide',
   cli: 'CLI Reference',
   'api-reference': 'API Reference',

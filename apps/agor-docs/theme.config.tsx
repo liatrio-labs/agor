@@ -9,11 +9,11 @@ const config: DocsThemeConfig = {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`${basePath}/logo.png`}
-        alt="Agor"
+        alt="agor"
         style={{ height: '42px', width: '42px' }}
         suppressHydrationWarning
       />
-      <strong style={{ fontSize: '18px' }}>Agor</strong>
+      <strong style={{ fontSize: '18px' }}>agor</strong>
     </span>
   ),
   project: {
@@ -54,12 +54,12 @@ const config: DocsThemeConfig = {
 
   head: () => {
     const { frontMatter, title } = useConfig();
-    const pageTitle = title || frontMatter.title || 'Agor';
+    const pageTitle = title || frontMatter.title || 'agor';
 
     return (
       <>
         <title>
-          {pageTitle === 'Agor' ? 'Agor – Next-gen agent orchestration' : `${pageTitle} – Agor`}
+          {pageTitle === 'agor' ? 'agor – Next-gen agent orchestration' : `${pageTitle} – agor`}
         </title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta property="og:title" content={pageTitle} />
