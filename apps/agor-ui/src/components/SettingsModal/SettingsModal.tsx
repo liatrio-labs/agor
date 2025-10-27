@@ -33,6 +33,7 @@ export interface SettingsModalProps {
   sessions: Session[];
   users: User[];
   mcpServers: MCPServer[];
+  activeTab?: string; // Control which tab is shown when modal opens
   onCreateBoard?: (board: Partial<Board>) => void;
   onUpdateBoard?: (boardId: string, updates: Partial<Board>) => void;
   onDeleteBoard?: (boardId: string) => void;
@@ -74,6 +75,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   sessions,
   users,
   mcpServers,
+  activeTab = 'boards',
   onCreateBoard,
   onUpdateBoard,
   onDeleteBoard,
@@ -122,9 +124,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     handleWorktreeModalClose();
   };
   return (
-    <Modal title="Settings" open={open} onCancel={onClose} footer={null} width={1200}>
+    <Modal
+      title="Settings"
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={1200}
+      style={{ minHeight: 600 }}
+      bodyStyle={{ minHeight: 500 }}
+    >
       <Tabs
-        defaultActiveKey="boards"
+        activeKey={activeTab}
         items={[
           {
             key: 'boards',

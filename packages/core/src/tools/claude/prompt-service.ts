@@ -565,6 +565,7 @@ export class ClaudePromptService {
     }
 
     // Add optional apiKey if provided
+    // NOTE: Don't require API key - user may have used `claude login` (OAuth)
     if (this.apiKey || process.env.ANTHROPIC_API_KEY) {
       options.apiKey = this.apiKey || process.env.ANTHROPIC_API_KEY;
     }

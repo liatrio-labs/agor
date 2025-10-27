@@ -369,22 +369,51 @@ export const WorktreesTable: React.FC<WorktreesTableProps> = ({
         </Button>
       </div>
 
-      {!worktrees && <Empty description="Loading worktrees..." />}
+      {!worktrees && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 400,
+          }}
+        >
+          <Empty description="Loading worktrees..." />
+        </div>
+      )}
 
       {worktrees && repos.length === 0 && (
-        <Empty description="No repositories configured">
-          <Typography.Text type="secondary">
-            Create a repository first in the Repositories tab to enable worktrees.
-          </Typography.Text>
-        </Empty>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 400,
+          }}
+        >
+          <Empty description="No repositories configured">
+            <Typography.Text type="secondary">
+              Create a repository first in the Repositories tab to enable worktrees.
+            </Typography.Text>
+          </Empty>
+        </div>
       )}
 
       {repos.length > 0 && worktrees.length === 0 && (
-        <Empty description="No worktrees yet">
-          <Typography.Text type="secondary">
-            Worktrees will appear here once created from sessions or the CLI.
-          </Typography.Text>
-        </Empty>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 400,
+          }}
+        >
+          <Empty description="No worktrees yet">
+            <Typography.Text type="secondary">
+              Worktrees will appear here once created from sessions or the CLI.
+            </Typography.Text>
+          </Empty>
+        </div>
       )}
 
       {worktrees.length > 0 && (

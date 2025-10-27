@@ -1,8 +1,10 @@
 import { getRepoReferenceOptions } from '@agor/core/config/browser';
 import { Alert, App as AntApp, ConfigProvider, Spin, theme } from 'antd';
+import { useEffect, useState } from 'react';
 import { App as AgorApp } from './components/App';
 import { LoginPage } from './components/LoginPage';
 import { SandboxBanner } from './components/SandboxBanner';
+import { WelcomeModal } from './components/WelcomeModal';
 import {
   useAgorClient,
   useAgorData,
@@ -76,6 +78,25 @@ function AppContent() {
 
   // Board actions
   const { createBoard, updateBoard, deleteBoard } = useBoardActions(client);
+
+  // Welcome modal state (onboarding for new users)
+  const [welcomeModalOpen, setWelcomeModalOpen] = useState(false);
+  const [settingsTabToOpen, setSettingsTabToOpen] = useState<string | null>(null);
+  const [openNewWorktree, setOpenNewWorktree] = useState(false);
+
+  // Show welcome modal if user hasn't completed onboarding
+  useEffect(() => {
+    console.log('[Onboarding] Check:', {
+      loading,
+      user: user?.email,
+      onboarding_completed: user?.onboarding_completed,
+    });
+
+    if (!loading && user && !user.onboarding_completed) {
+      console.log('[Onboarding] Showing welcome modal for', user.email);
+      setWelcomeModalOpen(true);
+    }
+  }, [loading, user]);
 
   // NOW handle conditional rendering based on state
   // Show loading while fetching auth config
@@ -308,13 +329,18 @@ function AppContent() {
         if (config.initialPrompt?.trim()) {
           await handleSendPrompt(session.session_id, config.initialPrompt, config.permissionMode);
         }
+
+        // Return the session ID so AgorApp can open the drawer
+        return session.session_id;
       } else {
         message.error('Failed to create session');
+        return null;
       }
     } catch (error) {
       message.error(
         `Failed to create session: ${error instanceof Error ? error.message : String(error)}`
       );
+      return null;
     }
   };
 
@@ -750,10 +776,53 @@ function AppContent() {
   const worktreeOptions = allOptions.filter(opt => opt.type === 'managed-worktree');
   const repoOptions = allOptions.filter(opt => opt.type === 'managed');
 
+  // Handle onboarding dismissal
+  const handleDismissOnboarding = async () => {
+    if (!client || !user) return;
+    try {
+      await client.service('users').patch(user.user_id, {
+        onboarding_completed: true,
+      });
+    } catch (error) {
+      message.error(
+        `Failed to update onboarding status: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  };
+
+  // Welcome modal action handlers - open settings to relevant tab
+  const handleWelcomeAddRepo = () => {
+    setWelcomeModalOpen(false);
+    setSettingsTabToOpen('repos');
+  };
+
+  const handleWelcomeCreateWorktree = () => {
+    setWelcomeModalOpen(false);
+    setOpenNewWorktree(true);
+  };
+
+  const handleWelcomeNewSession = () => {
+    setWelcomeModalOpen(false);
+    // TODO: Should this open a new session modal instead? For now just close.
+  };
+
   // Render main app
   return (
     <>
       <SandboxBanner />
+      <WelcomeModal
+        open={welcomeModalOpen}
+        onClose={() => setWelcomeModalOpen(false)}
+        stats={{
+          repoCount: repos.length,
+          worktreeCount: worktrees.length,
+          sessionCount: sessions.length,
+        }}
+        onAddRepo={handleWelcomeAddRepo}
+        onCreateWorktree={handleWelcomeCreateWorktree}
+        onNewSession={handleWelcomeNewSession}
+        onDismiss={handleDismissOnboarding}
+      />
       <AgorApp
         client={client}
         user={user}
@@ -769,6 +838,10 @@ function AppContent() {
         mcpServers={mcpServers}
         sessionMcpServerIds={sessionMcpServerIds}
         initialBoardId={boards[0]?.board_id}
+        openSettingsTab={settingsTabToOpen}
+        onSettingsClose={() => setSettingsTabToOpen(null)}
+        openNewWorktreeModal={openNewWorktree}
+        onNewWorktreeModalClose={() => setOpenNewWorktree(false)}
         onCreateSession={handleCreateSession}
         onForkSession={handleForkSession}
         onSpawnSession={handleSpawnSession}

@@ -1140,9 +1140,10 @@ async function main() {
               console.error(`   Check: CWD exists, Claude Code installed, API key valid`);
             }
 
-            // Mark task as failed and set session back to idle
+            // Mark task as failed with error message and set session back to idle
             await tasksService.patch(task.task_id, {
               status: TaskStatus.FAILED,
+              report: errorMessage, // Save error message so UI can display it
             });
             await sessionsService.patch(id, {
               status: SessionStatus.IDLE,

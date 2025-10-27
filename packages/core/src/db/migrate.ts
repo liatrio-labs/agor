@@ -276,6 +276,7 @@ async function createInitialSchema(db: Database): Promise<void> {
         name TEXT,
         emoji TEXT,
         role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member', 'viewer')),
+        onboarding_completed INTEGER NOT NULL DEFAULT 0,
         data TEXT NOT NULL
       )
     `);
@@ -601,9 +602,9 @@ export async function initializeDatabase(db: Database): Promise<void> {
  */
 export async function seedInitialData(db: Database): Promise<void> {
   try {
-    // Check if default board exists
+    // Check if default board exists (by slug to avoid duplicates)
     const result = await db.run(sql`
-      SELECT board_id FROM boards WHERE name = 'Default'
+      SELECT board_id FROM boards WHERE slug = 'default'
     `);
 
     if (result.rows.length === 0) {
@@ -616,13 +617,13 @@ export async function seedInitialData(db: Database): Promise<void> {
         INSERT INTO boards (board_id, name, slug, created_at, updated_at, created_by, data)
         VALUES (
           ${boardId},
-          ${'Default'},
+          ${'Main Board'},
           ${'default'},
           ${now},
           ${now},
           ${'anonymous'},
           ${JSON.stringify({
-            description: 'Default board for all sessions',
+            description: 'Main board for all sessions',
             sessions: [],
             color: '#1677ff',
             icon: '⭐',
@@ -630,7 +631,7 @@ export async function seedInitialData(db: Database): Promise<void> {
         )
       `);
 
-      console.log('Default board created');
+      console.log('Main Board created');
     }
   } catch (error) {
     throw new MigrationError(

@@ -275,9 +275,9 @@ export class BoardRepository implements BaseRepository<Board, Partial<Board>> {
 
       // Create default board
       return this.create({
-        name: 'Default',
+        name: 'Main Board',
         slug: 'default',
-        description: 'Default board for all sessions',
+        description: 'Main board for all sessions',
         color: '#1677ff',
         icon: '⭐',
       });

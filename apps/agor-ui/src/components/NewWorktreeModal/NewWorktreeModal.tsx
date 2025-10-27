@@ -1,6 +1,6 @@
 import type { Repo } from '@agor/core/types';
 import { Button, Form, Modal } from 'antd';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { WorktreeFormFields } from '../WorktreeFormFields';
 
 export interface NewWorktreeConfig {
@@ -36,24 +36,45 @@ export const NewWorktreeModal: React.FC<NewWorktreeModalProps> = ({
 
   const selectedRepo = repos.find(r => r.repo_id === selectedRepoId);
 
+  // Form validation handler
+  const handleValuesChange = useCallback(() => {
+    // Use setTimeout to ensure we're checking after the form state has updated
+    setTimeout(() => {
+      const values = form.getFieldsValue();
+
+      // Check if required fields are filled
+      const isValid = !!(values.repoId && values.sourceBranch && values.name);
+      setIsFormValid(isValid);
+    }, 0);
+  }, [form]);
+
   // Remember last used repo from localStorage
   useEffect(() => {
-    if (!open) return;
+    if (!open || repos.length === 0) return;
 
     const lastRepoId = localStorage.getItem('agor-last-repo-id');
 
     // If we have a last used repo and it still exists, use it
     if (lastRepoId && repos.some(r => r.repo_id === lastRepoId)) {
-      form.setFieldValue('repoId', lastRepoId);
+      form.setFieldsValue({
+        repoId: lastRepoId,
+        sourceBranch: repos.find(r => r.repo_id === lastRepoId)?.default_branch,
+      });
       setSelectedRepoId(lastRepoId);
-
-      // Auto-populate source branch
-      const repo = repos.find(r => r.repo_id === lastRepoId);
-      if (repo?.default_branch) {
-        form.setFieldValue('sourceBranch', repo.default_branch);
-      }
+      // Trigger validation check
+      handleValuesChange();
+    } else if (repos.length > 0) {
+      // No last-repo-id or it doesn't exist anymore - auto-select first repo
+      const firstRepo = repos[0];
+      form.setFieldsValue({
+        repoId: firstRepo.repo_id,
+        sourceBranch: firstRepo.default_branch,
+      });
+      setSelectedRepoId(firstRepo.repo_id);
+      // Trigger validation check
+      handleValuesChange();
     }
-  }, [open, repos, form]);
+  }, [open, repos, form, handleValuesChange]);
 
   const handleRepoChange = (repoId: string) => {
     setSelectedRepoId(repoId);
@@ -63,17 +84,6 @@ export const NewWorktreeModal: React.FC<NewWorktreeModalProps> = ({
     if (repo?.default_branch) {
       form.setFieldValue('sourceBranch', repo.default_branch);
     }
-  };
-
-  const handleValuesChange = () => {
-    // Use setTimeout to ensure we're checking after the form state has updated
-    setTimeout(() => {
-      const values = form.getFieldsValue();
-
-      // Check if required fields are filled
-      const isValid = !!(values.repoId && values.sourceBranch && values.name);
-      setIsFormValid(isValid);
-    }, 0);
   };
 
   const handleCreate = async () => {

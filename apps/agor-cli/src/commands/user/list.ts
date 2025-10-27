@@ -45,6 +45,7 @@ export default class UserList extends Command {
           role: row.role as User['role'],
           avatar: data.avatar,
           preferences: data.preferences,
+          onboarding_completed: !!row.onboarding_completed,
           created_at: row.created_at,
           updated_at: row.updated_at ?? undefined,
         };

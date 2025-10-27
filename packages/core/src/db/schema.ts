@@ -392,6 +392,11 @@ export const users = sqliteTable(
       .notNull()
       .default('member'),
 
+    // Onboarding state
+    onboarding_completed: integer('onboarding_completed', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+
     // JSON blob for profile/preferences
     data: text('data', { mode: 'json' })
       .$type<{

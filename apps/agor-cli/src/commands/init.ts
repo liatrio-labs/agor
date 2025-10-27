@@ -283,7 +283,7 @@ export default class Init extends Command {
     this.log('');
     this.log('🌱 Seeding initial data...');
     await seedInitialData(db);
-    this.log(`${chalk.green('   ✓')} Created default board`);
+    this.log(`${chalk.green('   ✓')} Created Main Board`);
 
     // Prompt for auth/multiplayer setup (unless --force)
     if (!skipPrompts) {

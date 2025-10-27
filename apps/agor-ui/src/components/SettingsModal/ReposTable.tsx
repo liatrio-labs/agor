@@ -127,11 +127,20 @@ export const ReposTable: React.FC<ReposTableProps> = ({ repos, onCreate, onUpdat
       </div>
 
       {repos.length === 0 && (
-        <Empty description="No repositories yet" style={{ marginTop: 32, marginBottom: 32 }}>
-          <Typography.Text type="secondary">
-            Click "New Repository" to clone a git repository.
-          </Typography.Text>
-        </Empty>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 400,
+          }}
+        >
+          <Empty description="No repositories yet">
+            <Typography.Text type="secondary">
+              Click "New Repository" to clone a git repository.
+            </Typography.Text>
+          </Empty>
+        </div>
       )}
 
       {repos.length > 0 && (

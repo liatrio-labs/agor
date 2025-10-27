@@ -20,6 +20,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   preferences?: Record<string, unknown>;
+  onboarding_completed: boolean;
   created_at: Date;
   updated_at?: Date;
 }
@@ -46,4 +47,5 @@ export interface UpdateUserInput {
   role?: UserRole;
   avatar?: string;
   preferences?: Record<string, unknown>;
+  onboarding_completed?: boolean;
 }

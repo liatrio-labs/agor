@@ -281,7 +281,8 @@ const WorktreeCard = ({
   return (
     <Card
       style={{
-        width: 400,
+        width: 500,
+        cursor: 'default', // Override React Flow's drag cursor - only drag handles should show grab cursor
         ...(isPinned && zoneColor ? { borderColor: zoneColor, borderWidth: 1 } : {}),
       }}
       styles={{
@@ -298,7 +299,10 @@ const WorktreeCard = ({
         }}
       >
         <Space size={8} align="center">
-          <div className="drag-handle" style={{ display: 'flex', alignItems: 'center' }}>
+          <div
+            className="drag-handle"
+            style={{ display: 'flex', alignItems: 'center', cursor: 'grab' }}
+          >
             <BranchesOutlined style={{ fontSize: 32, color: token.colorPrimary }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -335,6 +339,7 @@ const WorktreeCard = ({
             icon={<DragOutlined />}
             className="drag-handle"
             title="Drag to reposition"
+            style={{ cursor: 'grab' }}
           />
           <div className="nodrag">
             {onOpenTerminal && (

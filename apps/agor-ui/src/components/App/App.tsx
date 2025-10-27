@@ -60,7 +60,11 @@ export interface AppProps {
   mcpServers: MCPServer[];
   sessionMcpServerIds: Record<string, string[]>; // Map: sessionId -> mcpServerIds[]
   initialBoardId?: string;
-  onCreateSession?: (config: NewSessionConfig, boardId: string) => void;
+  openSettingsTab?: string | null; // Open settings modal to a specific tab
+  onSettingsClose?: () => void; // Called when settings modal closes
+  openNewWorktreeModal?: boolean; // Open new worktree modal
+  onNewWorktreeModalClose?: () => void; // Called when new worktree modal closes
+  onCreateSession?: (config: NewSessionConfig, boardId: string) => Promise<string | null>;
   onForkSession?: (sessionId: string, prompt: string) => Promise<void>;
   onSpawnSession?: (sessionId: string, prompt: string) => Promise<void>;
   onSendPrompt?: (sessionId: string, prompt: string, permissionMode?: PermissionMode) => void;
@@ -118,6 +122,10 @@ export const App: React.FC<AppProps> = ({
   mcpServers,
   sessionMcpServerIds,
   initialBoardId,
+  openSettingsTab,
+  onSettingsClose,
+  openNewWorktreeModal,
+  onNewWorktreeModalClose,
   onCreateSession,
   onForkSession,
   onSpawnSession,
@@ -154,6 +162,14 @@ export const App: React.FC<AppProps> = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [listDrawerOpen, setListDrawerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsActiveTab, setSettingsActiveTab] = useState<string>('boards');
+
+  // Handle external settings tab control (e.g., from welcome modal)
+  const effectiveSettingsOpen = settingsOpen || !!openSettingsTab;
+  const effectiveSettingsTab = openSettingsTab || settingsActiveTab;
+
+  // Handle external new worktree modal control (e.g., from welcome modal)
+  const effectiveNewWorktreeModalOpen = newWorktreeModalOpen || !!openNewWorktreeModal;
 
   // Initialize comments panel state from localStorage (collapsed by default)
   const [commentsPanelCollapsed, setCommentsPanelCollapsed] = useState(() => {
@@ -209,10 +225,15 @@ export const App: React.FC<AppProps> = ({
     setTerminalCommands([]);
   };
 
-  const handleCreateSession = (config: NewSessionConfig) => {
+  const handleCreateSession = async (config: NewSessionConfig) => {
     console.log('Creating session with config:', config, 'for board:', currentBoardId);
-    onCreateSession?.(config, currentBoardId);
+    const sessionId = await onCreateSession?.(config, currentBoardId);
     setNewSessionWorktreeId(null);
+
+    // If session was created successfully, open the drawer to show it
+    if (sessionId) {
+      setSelectedSessionId(sessionId);
+    }
   };
 
   const handleCreateWorktree = async (config: NewWorktreeConfig) => {
@@ -479,8 +500,11 @@ export const App: React.FC<AppProps> = ({
         onDelete={onDeleteSession}
       />
       <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        open={effectiveSettingsOpen}
+        onClose={() => {
+          setSettingsOpen(false);
+          onSettingsClose?.();
+        }}
         client={client}
         boards={boards}
         boardObjects={boardObjects}
@@ -489,6 +513,7 @@ export const App: React.FC<AppProps> = ({
         sessions={sessions}
         users={users}
         mcpServers={mcpServers}
+        activeTab={effectiveSettingsTab}
         onCreateBoard={onCreateBoard}
         onUpdateBoard={onUpdateBoard}
         onDeleteBoard={onDeleteBoard}
@@ -553,8 +578,11 @@ export const App: React.FC<AppProps> = ({
         initialCommands={terminalCommands}
       />
       <NewWorktreeModal
-        open={newWorktreeModalOpen}
-        onClose={() => setNewWorktreeModalOpen(false)}
+        open={effectiveNewWorktreeModalOpen}
+        onClose={() => {
+          setNewWorktreeModalOpen(false);
+          onNewWorktreeModalClose?.();
+        }}
         onCreate={handleCreateWorktree}
         repos={repos}
         currentBoardId={currentBoardId}

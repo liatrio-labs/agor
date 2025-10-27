@@ -46,6 +46,9 @@ export async function createUser(db: Database, data: CreateUserData): Promise<Us
   const now = new Date();
   const user_id = generateId() as UserID;
 
+  const role = data.role || 'member';
+  const defaultEmoji = role === 'admin' ? '⭐' : '👤';
+
   const row = await db
     .insert(users)
     .values({
@@ -53,7 +56,8 @@ export async function createUser(db: Database, data: CreateUserData): Promise<Us
       email: data.email,
       password: hashedPassword,
       name: data.name,
-      role: data.role || 'member',
+      emoji: defaultEmoji,
+      role,
       created_at: now,
       updated_at: now,
       data: {
@@ -73,6 +77,7 @@ export async function createUser(db: Database, data: CreateUserData): Promise<Us
     role: row.role as 'owner' | 'admin' | 'member' | 'viewer',
     avatar: userData.avatar,
     preferences: userData.preferences,
+    onboarding_completed: !!row.onboarding_completed,
     created_at: row.created_at,
     updated_at: row.updated_at ?? undefined,
   };
@@ -113,6 +118,7 @@ export async function getUserByEmail(db: Database, email: string): Promise<User 
     role: row.role as 'owner' | 'admin' | 'member' | 'viewer',
     avatar: userData.avatar,
     preferences: userData.preferences,
+    onboarding_completed: !!row.onboarding_completed,
     created_at: row.created_at,
     updated_at: row.updated_at ?? undefined,
   };

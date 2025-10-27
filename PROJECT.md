@@ -20,6 +20,7 @@ Simple todo list for launch preparation.
 
 ## Consider for Launch
 
+- [ ] database migrations ready for next release
 - [ ] Write/Edit tool with file diffs and syntax highlighting
 - [ ] Concepts as first-class primitives (CRUD in UI/CLI)
 - [ ] Reports as first-class primitives (CRUD in UI/CLI)

@@ -31,6 +31,7 @@ interface UpdateUserData {
   role?: 'owner' | 'admin' | 'member' | 'viewer';
   avatar?: string;
   preferences?: Record<string, unknown>;
+  onboarding_completed?: boolean;
 }
 
 /**
@@ -139,6 +140,8 @@ export class UsersService {
     if (data.name) updates.name = data.name;
     if (data.emoji !== undefined) updates.emoji = data.emoji;
     if (data.role) updates.role = data.role;
+    if (data.onboarding_completed !== undefined)
+      updates.onboarding_completed = data.onboarding_completed;
 
     // Update data blob
     if (data.avatar || data.preferences) {
@@ -215,6 +218,7 @@ export class UsersService {
       role: row.role as 'owner' | 'admin' | 'member' | 'viewer',
       avatar: data.avatar,
       preferences: data.preferences,
+      onboarding_completed: !!row.onboarding_completed,
       created_at: row.created_at,
       updated_at: row.updated_at ?? undefined,
     };
@@ -262,6 +266,7 @@ class UsersServiceWithAuth extends UsersService {
       role: row.role as 'owner' | 'admin' | 'member' | 'viewer',
       avatar: data.avatar,
       preferences: data.preferences,
+      onboarding_completed: !!row.onboarding_completed,
       created_at: row.created_at,
       updated_at: row.updated_at ?? undefined,
     };
