@@ -23,14 +23,14 @@
 }
 
 .heroContent {
-  margin-bottom: 2rem;
+  margin-bottom: 4rem;
 }
 
 .heroTitle {
-  font-size: 3.5rem;
+  font-size: 5rem;
   font-weight: 800;
   line-height: 1.1;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
   background: linear-gradient(135deg, #2e9a92 0%, #3db4aa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -38,27 +38,27 @@
 }
 
 .heroSubtitle {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 600;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
   color: var(--nx-colors-gray-11);
 }
 
 .heroDescription {
   font-size: 1.125rem;
-  line-height: 1.6;
+  line-height: 1.8;
   color: var(--nx-colors-gray-10);
   max-width: 800px;
-  margin: 0 auto 2rem;
+  margin: 0 auto 3rem;
 }
 
 .heroActions {
   display: flex;
-  gap: 1rem;
+  gap: 2rem;
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;
-  margin-top: 2rem;
+  margin-top: 3rem;
 }
 
 .primaryButton {
