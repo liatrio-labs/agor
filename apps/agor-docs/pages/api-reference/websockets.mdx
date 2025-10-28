@@ -26,7 +26,8 @@ Broadcast when a user moves their cursor on the board.
 {
   userId: string;
   boardId: string;
-  position: { x: number; y: number };
+  x: number;
+  y: number;
   timestamp: number;
 }
 ```
@@ -35,7 +36,7 @@ Broadcast when a user moves their cursor on the board.
 
 ```javascript
 socket.on('cursor-moved', (data) => {
-  console.log(`User ${data.userId} moved to (${data.position.x}, ${data.position.y})`);
+  console.log(`User ${data.userId} moved to (${data.x}, ${data.y})`);
 });
 ```
 

@@ -1,4 +1,4 @@
-<img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/logo_circle.png" alt="Agor Logo" width="320" />
+<img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/logo_circle.png" alt="Agor Logo" width="160" />
 
 # Agor
 
@@ -40,21 +40,41 @@ agor open
     <tr>
       <td width="50%">
         <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/Area.gif" alt="Spatial 2D Canvas"/>
-        <p align="center"><em>Spatial canvas with worktrees and zones</em></p>
+        <p align="center"><em style="opacity: 0.5;">Spatial canvas with worktrees and zones</em></p>
       </td>
       <td width="50%">
-        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/Convo.gif" alt="AI Conversation in Action"/>
-        <p align="center"><em>Rich web UI for AI conversations</em></p>
+        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/zone_trigger_modal.png" alt="Zone Trigger Modal"/>
+        <p align="center"><em style="opacity: 0.5;">Zone trigger modal on session drop</em></p>
       </td>
     </tr>
     <tr>
       <td width="50%">
-        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/Settings.gif" alt="Settings and Configuration"/>
-        <p align="center"><em>MCP servers and worktree management</em></p>
+        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/zone_trigger_config.png" alt="Zone Configuration"/>
+        <p align="center"><em style="opacity: 0.5;">Zone trigger configuration</em></p>
+      </td>
+      <td width="50%">
+        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/env_configuration.png" alt="Environment Configuration"/>
+        <p align="center"><em style="opacity: 0.5;">Worktree environment setup</em></p>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%">
+        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/Convo.gif" alt="AI Conversation in Action"/>
+        <p align="center"><em style="opacity: 0.5;">Rich web UI for AI conversations</em></p>
       </td>
       <td width="50%">
         <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/Social.gif" alt="Real-time Multiplayer"/>
-        <p align="center"><em>Live collaboration with cursors and comments</em></p>
+        <p align="center"><em style="opacity: 0.5;">Live collaboration with cursors and comments</em></p>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%">
+        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/baked_in_terminal.png" alt="Built-in Terminal"/>
+        <p align="center"><em style="opacity: 0.5;">Built-in terminal with worktree context</em></p>
+      </td>
+      <td width="50%">
+        <img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/onboarding.png" alt="Onboarding Experience"/>
+        <p align="center"><em style="opacity: 0.5;">Welcome screen showing team status</em></p>
       </td>
     </tr>
   </table>
