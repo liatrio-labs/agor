@@ -105,25 +105,44 @@ See [Architecture Guide](https://mistercrunch.github.io/agor/guide/architecture)
 
 ## Key Features
 
-### Git Worktree Management
+### 🧩 Agent Orchestration Layer
 
-Every session maps to a git worktree - no more branch conflicts when running parallel AI work.
+- **Claude Code**, **Codex**, and **Gemini** support via extensible SDK — more coming soon.
+- Centralized **MCP configuration** — connect once, use across all tools.
+- Swap or parallelize agents with one command; easily hand off work when one model stalls.
 
-### Environment Management
+### 🌐 Multiplayer Spatial Canvas
 
-Start/stop dev servers per worktree. Each gets unique ports. Share running environments with teammates via URL.
+- Real-time collaboration with **cursor broadcasting** and **facepiles**.
+- Sessions live on a **dynamic board** — cluster by project, phase, or purpose.
+- **Threaded comments** directly on the board with spatial pins (Figma-style).
+- **Emoji reactions** for quick feedback; resolve threads when decisions are made.
 
-### Zone Triggers
+### 🌲 Session Trees — Fork, Spawn, Coordinate
 
-Drop sessions on zones to trigger templated workflows (analyze → develop → review → deploy).
+- **Fork sessions** to explore alternatives without losing the original path.
+- **Spawn subsessions** for focused subtasks that report back to the parent.
+- Visualize the full genealogy — see how work branched, merged, and evolved.
+- Track outcomes across the tree to understand what approaches worked.
 
-### Session Genealogy
+### ⚙️ Zone Triggers — Workflows Made Spatial
 
-Fork sessions to explore alternatives. Spawn subtasks with fresh context. Full ancestry tracking.
+- Define **zones** on your board that trigger templated prompts when sessions are dropped.
+- Build **kanban-style flows** or custom pipelines: analyze → develop → review → deploy.
+- Combine with context templates to automate arbitrarily complex workflows.
 
-### Multi-Agent Support
+### 🌳 Shared, Persisted Dev Environments
 
-Swap between Claude/Codex/Gemini mid-task. Compare outputs. Hand off when one model stalls.
+- **No more local environment juggling** — managed **git worktrees** with shared, persistent dev environments.
+- Sessions map to worktrees with running apps, auto-managed ports, and health monitoring.
+- **One-click control** — configure start/stop commands once, everyone on the team can use it.
+- Works with any stack: `docker compose up`, `npm run dev`, `./manage.py runserver`.
+
+### 🕹️ Real-Time Strategy for AI Teams
+
+- Coordinate agentic work like a multiplayer RTS.
+- Watch teammates or agents move across tasks live.
+- Cluster sessions, delegate, pivot, and iterate together.
 
 ---
 
