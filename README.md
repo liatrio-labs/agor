@@ -1,4 +1,4 @@
-<img src="https://github.com/mistercrunch/agor/releases/download/v0.3.15/logo_circle.png" alt="Agor Logo" width="160" />
+<img src=".github/logo.png" alt="Agor Logo" width="160" />
 
 # Agor
 

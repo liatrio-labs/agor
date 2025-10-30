@@ -304,6 +304,7 @@ function AppContent() {
           pullLatest: config.newWorktree.pullLatest,
           issue_url: config.newWorktree.issue_url,
           pull_request_url: config.newWorktree.pull_request_url,
+          boardId: config.newWorktree.boardId, // Pass boardId from session config
         });
 
         if (!newWorktree) {
@@ -583,6 +584,7 @@ function AppContent() {
       pullLatest: boolean;
       issue_url?: string;
       pull_request_url?: string;
+      boardId?: string;
     }
   ): Promise<import('@agor/core/types').Worktree | null> => {
     if (!client) return null;
@@ -597,6 +599,7 @@ function AppContent() {
         sourceBranch: data.sourceBranch, // Base new branch on specified source branch
         issue_url: data.issue_url,
         pull_request_url: data.pull_request_url,
+        boardId: data.boardId, // Optional: add to board
       })) as import('@agor/core/types').Worktree;
 
       message.success({ content: 'Worktree created successfully!', key: 'create-worktree' });

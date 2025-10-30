@@ -11,11 +11,22 @@ import { loadConfig, type UnknownJson } from '@agor/core/config';
 // Read package version once at startup (not on every /health request)
 let DAEMON_VERSION = '0.0.0';
 try {
-  const pkgPath = new URL('../package.json', import.meta.url);
-  const pkg = await import(pkgPath.href, { assert: { type: 'json' } });
-  DAEMON_VERSION = pkg.default?.version || DAEMON_VERSION;
+  // Try to read from ../package.json (development) or ../../package.json (agor-live)
+  let pkgPath = new URL('../package.json', import.meta.url);
+  let pkg: { default?: { version?: string } } | undefined;
+
+  try {
+    pkg = await import(pkgPath.href, { assert: { type: 'json' } });
+  } catch {
+    // If ../package.json doesn't exist, try ../../package.json (agor-live structure)
+    pkgPath = new URL('../../package.json', import.meta.url);
+    pkg = await import(pkgPath.href, { assert: { type: 'json' } });
+  }
+
+  DAEMON_VERSION = pkg?.default?.version || DAEMON_VERSION;
 } catch {
   // Fallback if package.json can't be read
+  console.warn('⚠️  Could not read package.json for version - using fallback 0.0.0');
 }
 
 import {
