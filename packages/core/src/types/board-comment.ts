@@ -89,9 +89,13 @@ export interface BoardComment {
   position?: {
     /** Absolute board coordinates (React Flow coordinates) */
     absolute?: { x: number; y: number };
-    /** OR relative to session (follows session when it moves) */
+    /** OR relative to session/zone/worktree (follows parent when it moves) */
     relative?: {
-      session_id: string;
+      /** Parent object ID - can be session_id, zone object ID, or worktree_id */
+      parent_id: string;
+      /** Type of parent for proper lookup */
+      parent_type: 'session' | 'zone' | 'worktree';
+      /** Offset from parent's top-left corner */
       offset_x: number;
       offset_y: number;
     };
@@ -118,18 +122,22 @@ export interface BoardComment {
  * Hierarchy (most specific → least specific):
  * 1. MESSAGE - Attached to specific message
  * 2. TASK - Attached to task
- * 3. SESSION_SPATIAL - Spatial pin on session
+ * 3. SESSION_SPATIAL - Spatial pin on session (relative positioning)
  * 4. SESSION - Attached to session
- * 5. WORKTREE - Attached to worktree
- * 6. BOARD_SPATIAL - Spatial pin on board
- * 7. BOARD - General board conversation
+ * 5. WORKTREE_SPATIAL - Spatial pin on worktree (relative positioning)
+ * 6. WORKTREE - Attached to worktree
+ * 7. ZONE_SPATIAL - Spatial pin on zone (relative positioning)
+ * 8. BOARD_SPATIAL - Spatial pin on board (absolute positioning)
+ * 9. BOARD - General board conversation
  */
 export const CommentAttachmentType = {
   MESSAGE: 'message',
   TASK: 'task',
   SESSION_SPATIAL: 'session-spatial',
   SESSION: 'session',
+  WORKTREE_SPATIAL: 'worktree-spatial',
   WORKTREE: 'worktree',
+  ZONE_SPATIAL: 'zone-spatial',
   BOARD_SPATIAL: 'board-spatial',
   BOARD: 'board',
 } as const;
@@ -144,10 +152,25 @@ export function getCommentAttachmentType(comment: BoardComment): CommentAttachme
   // Most specific → least specific
   if (comment.message_id) return CommentAttachmentType.MESSAGE;
   if (comment.task_id) return CommentAttachmentType.TASK;
-  if (comment.session_id && comment.position?.relative)
-    return CommentAttachmentType.SESSION_SPATIAL;
+
+  // Check for relative positioning (spatial pins)
+  if (comment.position?.relative) {
+    if (comment.position.relative.parent_type === 'session') {
+      return CommentAttachmentType.SESSION_SPATIAL;
+    }
+    if (comment.position.relative.parent_type === 'worktree') {
+      return CommentAttachmentType.WORKTREE_SPATIAL;
+    }
+    if (comment.position.relative.parent_type === 'zone') {
+      return CommentAttachmentType.ZONE_SPATIAL;
+    }
+  }
+
+  // FK-based attachments
   if (comment.session_id) return CommentAttachmentType.SESSION;
   if (comment.worktree_id) return CommentAttachmentType.WORKTREE;
+
+  // Absolute positioning or board-level
   if (comment.position?.absolute) return CommentAttachmentType.BOARD_SPATIAL;
   return CommentAttachmentType.BOARD; // Default: board-level conversation
 }

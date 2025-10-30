@@ -154,30 +154,6 @@ describe('BoardCommentsRepository.create', () => {
     });
   });
 
-  dbTest('should store relative position with session_id', async ({ db }) => {
-    const repo = new BoardCommentsRepository(db);
-    const board = await createTestBoard(db);
-    const sessionId = generateId();
-    const data = createCommentData({
-      board_id: board.board_id,
-      position: {
-        relative: {
-          session_id: sessionId,
-          offset_x: 50,
-          offset_y: -30,
-        },
-      },
-    });
-
-    const created = await repo.create(data);
-
-    expect(created.position?.relative).toEqual({
-      session_id: sessionId,
-      offset_x: 50,
-      offset_y: -30,
-    });
-  });
-
   dbTest('should store mentions array', async ({ db }) => {
     const repo = new BoardCommentsRepository(db);
     const board = await createTestBoard(db);

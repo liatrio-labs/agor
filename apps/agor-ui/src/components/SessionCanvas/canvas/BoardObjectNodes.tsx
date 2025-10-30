@@ -10,6 +10,9 @@ import { NodeResizer, useViewport } from 'reactflow';
 import { DeleteZoneModal } from './DeleteZoneModal';
 import { ZoneConfigModal } from './ZoneConfigModal';
 
+// Zone content opacity constant - used for zone background and color indicator
+export const ZONE_CONTENT_OPACITY = 0.1;
+
 /**
  * Get color palette from Ant Design preset colors
  * Uses the -6 variants (primary saturation) from the color scale
@@ -126,7 +129,11 @@ const ZoneNodeComponent = ({ data, selected }: { data: ZoneNodeData; selected?: 
   };
 
   const borderColor = data.color || token.colorBorder;
-  const backgroundColor = data.color ? `${data.color}20` : `${token.colorBgContainer}40`; // 40 = 25% opacity in hex
+  // Convert ZONE_CONTENT_OPACITY to hex (0.15 * 255 = 38 = 0x26)
+  const opacityHex = Math.round(ZONE_CONTENT_OPACITY * 255)
+    .toString(16)
+    .padStart(2, '0');
+  const backgroundColor = data.color ? `${data.color}${opacityHex}` : `${token.colorBgContainer}40`;
 
   return (
     <>
@@ -163,15 +170,15 @@ const ZoneNodeComponent = ({ data, selected }: { data: ZoneNodeData; selected?: 
         {/* Toolbar - ALWAYS rendered, visibility controlled by CSS only */}
         <div
           className="nodrag nopan"
-          onPointerDown={(e) => {
+          onPointerDown={e => {
             e.preventDefault();
             e.stopPropagation();
           }}
-          onPointerUp={(e) => {
+          onPointerUp={e => {
             e.preventDefault();
             e.stopPropagation();
           }}
-          onClick={(e) => {
+          onClick={e => {
             e.preventDefault();
             e.stopPropagation();
           }}
@@ -196,20 +203,20 @@ const ZoneNodeComponent = ({ data, selected }: { data: ZoneNodeData; selected?: 
             transition: 'opacity 0.15s ease',
           }}
         >
-          {colors.map((color) => (
+          {colors.map(color => (
             <button
               key={color}
               type="button"
-              onPointerDown={(e) => {
+              onPointerDown={e => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              onPointerUp={(e) => {
+              onPointerUp={e => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleColorChange(color);
               }}
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
@@ -239,16 +246,16 @@ const ZoneNodeComponent = ({ data, selected }: { data: ZoneNodeData; selected?: 
           />
           <button
             type="button"
-            onPointerDown={(e) => {
+            onPointerDown={e => {
               e.preventDefault();
               e.stopPropagation();
             }}
-            onPointerUp={(e) => {
+            onPointerUp={e => {
               e.preventDefault();
               e.stopPropagation();
               setConfigModalOpen(true);
             }}
-            onClick={(e) => {
+            onClick={e => {
               e.preventDefault();
               e.stopPropagation();
             }}
@@ -271,24 +278,24 @@ const ZoneNodeComponent = ({ data, selected }: { data: ZoneNodeData; selected?: 
           </button>
           <button
             type="button"
-            onPointerDown={(e) => {
+            onPointerDown={e => {
               e.preventDefault();
               e.stopPropagation();
             }}
-            onPointerUp={(e) => {
+            onPointerUp={e => {
               e.preventDefault();
               e.stopPropagation();
               setDeleteModalOpen(true);
             }}
-            onClick={(e) => {
+            onClick={e => {
               e.preventDefault();
               e.stopPropagation();
             }}
-            onMouseEnter={(e) => {
+            onMouseEnter={e => {
               e.currentTarget.style.color = token.colorError;
               e.currentTarget.style.borderColor = token.colorError;
             }}
-            onMouseLeave={(e) => {
+            onMouseLeave={e => {
               e.currentTarget.style.color = token.colorTextSecondary;
               e.currentTarget.style.borderColor = token.colorBorder;
             }}
@@ -322,7 +329,7 @@ const ZoneNodeComponent = ({ data, selected }: { data: ZoneNodeData; selected?: 
               ref={labelInputRef}
               type="text"
               value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              onChange={e => setLabel(e.target.value)}
               onBlur={handleSaveLabel}
               onKeyDown={handleKeyDown}
               className="nodrag" // Prevent node drag when typing
@@ -377,7 +384,7 @@ const ZoneNodeComponent = ({ data, selected }: { data: ZoneNodeData; selected?: 
       <DeleteZoneModal
         open={deleteModalOpen}
         onCancel={() => setDeleteModalOpen(false)}
-        onConfirm={(deleteAssociatedSessions) => {
+        onConfirm={deleteAssociatedSessions => {
           setDeleteModalOpen(false);
           if (data.onDelete) {
             data.onDelete(data.objectId, deleteAssociatedSessions);
@@ -400,6 +407,8 @@ interface CommentNodeData {
   comment: BoardComment;
   replyCount: number;
   user?: import('@agor/core/types').User;
+  parentLabel?: string; // Label of parent zone/worktree if pinned
+  parentColor?: string; // Color of parent zone if pinned
   onClick?: (commentId: string) => void;
   onHover?: (commentId: string) => void;
   onLeave?: () => void;
@@ -415,7 +424,7 @@ const PIN_OFFSET_Y = -PIN_HEIGHT; // Position tip at coordinate
 const CommentNodeComponent = ({ data }: { data: CommentNodeData }) => {
   const { token } = theme.useToken();
   const { zoom } = useViewport();
-  const { comment, replyCount, user, onClick, onHover, onLeave } = data;
+  const { comment, replyCount, user, parentLabel, parentColor, onClick, onHover, onLeave } = data;
   const [isHovered, setIsHovered] = useState(false);
 
   // Show first line of content as preview
@@ -512,6 +521,28 @@ const CommentNodeComponent = ({ data }: { data: CommentNodeData }) => {
             {totalCount}
           </div>
         )}
+
+        {/* Zone color indicator */}
+        {parentColor && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '-6px',
+              left: '-6px',
+              width: '14px',
+              height: '14px',
+              // Fill with zone color at ZONE_CONTENT_OPACITY
+              backgroundColor: `${parentColor}${Math.round(ZONE_CONTENT_OPACITY * 255)
+                .toString(16)
+                .padStart(2, '0')}`,
+              // Border is solid zone color
+              border: `2px solid ${parentColor}`,
+              borderRadius: '3px',
+              zIndex: 1,
+              boxShadow: token.boxShadowSecondary,
+            }}
+          />
+        )}
       </div>
 
       {/* Hover tooltip - simple who/when/what preview */}
@@ -558,6 +589,22 @@ const CommentNodeComponent = ({ data }: { data: CommentNodeData }) => {
               </div>
             </div>
           </div>
+
+          {/* Where - parent object if pinned */}
+          {parentLabel && (
+            <div
+              style={{
+                fontSize: 11,
+                color: token.colorTextSecondary,
+                marginBottom: 8,
+                padding: '4px 8px',
+                background: token.colorBgContainer,
+                borderRadius: token.borderRadiusSM,
+              }}
+            >
+              {parentLabel}
+            </div>
+          )}
 
           {/* What - content preview */}
           <div

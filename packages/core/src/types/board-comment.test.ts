@@ -61,7 +61,8 @@ describe('getCommentAttachmentType', () => {
         session_id: 'session_123' as any,
         position: {
           relative: {
-            session_id: 'session_123',
+            parent_id: 'session_123',
+            parent_type: 'session',
             offset_x: 10,
             offset_y: 20,
           },
@@ -123,7 +124,8 @@ describe('getCommentAttachmentType', () => {
         session_id: 'session_123' as any,
         position: {
           relative: {
-            session_id: 'session_123',
+            parent_id: 'session_123',
+            parent_type: 'session',
             offset_x: 0,
             offset_y: 0,
           },
@@ -158,7 +160,8 @@ describe('getCommentAttachmentType', () => {
         session_id: 'session_123' as any,
         position: {
           relative: {
-            session_id: 'session_123',
+            parent_id: 'session_123',
+            parent_type: 'session',
             offset_x: 0,
             offset_y: 0,
           },

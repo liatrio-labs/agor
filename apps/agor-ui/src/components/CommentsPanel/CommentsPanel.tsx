@@ -1,5 +1,12 @@
 import type { AgorClient } from '@agor/core/api';
-import type { BoardComment, CommentReaction, ReactionSummary, User } from '@agor/core/types';
+import type {
+  BoardComment,
+  BoardObject,
+  CommentReaction,
+  ReactionSummary,
+  User,
+  Worktree,
+} from '@agor/core/types';
 import { groupReactions, isThreadRoot } from '@agor/core/types';
 import {
   CheckOutlined,
@@ -14,6 +21,7 @@ import {
   Avatar,
   Badge,
   Button,
+  Collapse,
   Input,
   List,
   Popover,
@@ -25,6 +33,7 @@ import {
 } from 'antd';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { ZONE_CONTENT_OPACITY } from '../SessionCanvas/canvas/BoardObjectNodes';
 
 const { Text, Title } = Typography;
 
@@ -34,6 +43,8 @@ export interface CommentsPanelProps {
   comments: BoardComment[];
   users: User[];
   currentUserId: string;
+  boardObjects?: Record<string, BoardObject>; // For zone names
+  worktrees?: Worktree[]; // For worktree names
   loading?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -100,7 +111,7 @@ const EmojiPickerButton: React.FC<{
     <Popover
       content={
         <EmojiPicker
-          onEmojiClick={(emojiData) => {
+          onEmojiClick={emojiData => {
             onToggle(emojiData.emoji);
             setPickerOpen(false);
           }}
@@ -137,7 +148,7 @@ const ReplyItem: React.FC<{
 }> = ({ reply, users, currentUserId, onToggleReaction, onDelete }) => {
   const { token } = theme.useToken();
   const [replyHovered, setReplyHovered] = useState(false);
-  const replyUser = users.find((u) => u.user_id === reply.created_by);
+  const replyUser = users.find(u => u.user_id === reply.created_by);
   const isReplyCurrentUser = reply.created_by === currentUserId;
 
   return (
@@ -182,7 +193,7 @@ const ReplyItem: React.FC<{
               <ReactionDisplay
                 reactions={reply.reactions || []}
                 currentUserId={currentUserId}
-                onToggle={(emoji) => onToggleReaction(reply.comment_id, emoji)}
+                onToggle={emoji => onToggleReaction(reply.comment_id, emoji)}
               />
             </Space>
           </div>
@@ -203,9 +214,7 @@ const ReplyItem: React.FC<{
           >
             <Space size="small">
               {onToggleReaction && (
-                <EmojiPickerButton
-                  onToggle={(emoji) => onToggleReaction(reply.comment_id, emoji)}
-                />
+                <EmojiPickerButton onToggle={emoji => onToggleReaction(reply.comment_id, emoji)} />
               )}
               {onDelete && isReplyCurrentUser && (
                 <Button
@@ -255,7 +264,7 @@ const CommentThread: React.FC<{
   const { token } = theme.useToken();
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const user = users.find((u) => u.user_id === comment.created_by);
+  const user = users.find(u => u.user_id === comment.created_by);
   const isCurrentUser = comment.created_by === currentUserId;
 
   return (
@@ -319,7 +328,7 @@ const CommentThread: React.FC<{
               <ReactionDisplay
                 reactions={comment.reactions || []}
                 currentUserId={currentUserId}
-                onToggle={(emoji) => onToggleReaction(comment.comment_id, emoji)}
+                onToggle={emoji => onToggleReaction(comment.comment_id, emoji)}
               />
             </Space>
           </div>
@@ -341,7 +350,7 @@ const CommentThread: React.FC<{
             <Space size="small">
               {onToggleReaction && (
                 <EmojiPickerButton
-                  onToggle={(emoji) => onToggleReaction(comment.comment_id, emoji)}
+                  onToggle={emoji => onToggleReaction(comment.comment_id, emoji)}
                 />
               )}
               {onReply && (
@@ -401,7 +410,7 @@ const CommentThread: React.FC<{
           >
             <List
               dataSource={replies}
-              renderItem={(reply) => (
+              renderItem={reply => (
                 <ReplyItem
                   reply={reply}
                   users={users}
@@ -420,7 +429,7 @@ const CommentThread: React.FC<{
             <Input.Search
               placeholder="Reply..."
               enterButton={<SendOutlined />}
-              onSearch={(value) => {
+              onSearch={value => {
                 if (value.trim()) {
                   onReply(comment.comment_id, value);
                   setShowReplyInput(false);
@@ -443,6 +452,8 @@ export const CommentsPanel: React.FC<CommentsPanelProps> = ({
   comments,
   users,
   currentUserId,
+  boardObjects = {},
+  worktrees = [],
   loading = false,
   collapsed = false,
   onToggleCollapse,
@@ -462,9 +473,9 @@ export const CommentsPanel: React.FC<CommentsPanelProps> = ({
   const commentRefs = React.useRef<Record<string, React.RefObject<HTMLDivElement>>>({});
 
   // Separate thread roots from replies
-  const threadRoots = useMemo(() => comments.filter((c) => isThreadRoot(c)), [comments]);
+  const threadRoots = useMemo(() => comments.filter(c => isThreadRoot(c)), [comments]);
 
-  const allReplies = useMemo(() => comments.filter((c) => !isThreadRoot(c)), [comments]);
+  const allReplies = useMemo(() => comments.filter(c => !isThreadRoot(c)), [comments]);
 
   // Group replies by parent
   const repliesByParent = useMemo(() => {
@@ -483,12 +494,70 @@ export const CommentsPanel: React.FC<CommentsPanelProps> = ({
   // Apply filters to thread roots only
   const filteredThreads = useMemo(() => {
     return threadRoots
-      .filter((thread) => {
+      .filter(thread => {
         if (filter === 'active' && thread.resolved) return false;
         return true;
       })
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [threadRoots, filter]);
+
+  // Group filtered threads by scope (zone, worktree, or board-level)
+  const groupedThreads = useMemo(() => {
+    const groups: Record<
+      string,
+      {
+        type: 'zone' | 'worktree' | 'board';
+        label: string;
+        color?: string;
+        threads: BoardComment[];
+      }
+    > = {};
+
+    for (const thread of filteredThreads) {
+      let groupKey = 'board';
+      let groupLabel = 'Board Comments';
+      let groupType: 'zone' | 'worktree' | 'board' = 'board';
+      let groupColor: string | undefined;
+
+      // Check if comment has relative positioning (pinned to zone/worktree)
+      if (thread.position?.relative) {
+        const { parent_id, parent_type } = thread.position.relative;
+
+        if (parent_type === 'zone') {
+          groupKey = `zone-${parent_id}`;
+          const zone = boardObjects?.[`zone-${parent_id}`]; // Zone keys have 'zone-' prefix
+          // Zone objects have a label field and color
+          groupLabel = zone && 'label' in zone ? `📍 ${zone.label}` : `📍 Zone`;
+          groupColor = zone && 'color' in zone ? zone.color : undefined;
+          groupType = 'zone';
+        } else if (parent_type === 'worktree') {
+          groupKey = `worktree-${parent_id}`;
+          const worktree = worktrees.find(w => w.worktree_id === parent_id);
+          groupLabel = worktree ? `🌳 ${worktree.name}` : `🌳 Worktree (${parent_id})`;
+          groupType = 'worktree';
+        }
+      } else if (thread.worktree_id) {
+        // Check for FK-based worktree attachment
+        groupKey = `worktree-${thread.worktree_id}`;
+        const worktree = worktrees.find(w => w.worktree_id === thread.worktree_id);
+        groupLabel = worktree ? `🌳 ${worktree.name}` : `🌳 Worktree (${thread.worktree_id})`;
+        groupType = 'worktree';
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          type: groupType,
+          label: groupLabel,
+          color: groupColor,
+          threads: [],
+        };
+      }
+
+      groups[groupKey].threads.push(thread);
+    }
+
+    return groups;
+  }, [filteredThreads, boardObjects, worktrees]);
 
   // Scroll to selected comment when it changes
   useEffect(() => {
@@ -588,7 +657,7 @@ export const CommentsPanel: React.FC<CommentsPanelProps> = ({
           <div style={{ textAlign: 'center', padding: 32 }}>
             <Spin tip="Loading comments..." />
           </div>
-        ) : filteredThreads.length === 0 ? (
+        ) : Object.keys(groupedThreads).length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -601,32 +670,69 @@ export const CommentsPanel: React.FC<CommentsPanelProps> = ({
             <div style={{ fontSize: 12, marginTop: 8 }}>Start a conversation about this board</div>
           </div>
         ) : (
-          <List
-            dataSource={filteredThreads}
-            renderItem={(thread) => {
-              // Create or get ref for this thread
-              if (!commentRefs.current[thread.comment_id]) {
-                commentRefs.current[thread.comment_id] = React.createRef<HTMLDivElement>();
-              }
-
-              const isHighlighted =
-                thread.comment_id === hoveredCommentId || thread.comment_id === selectedCommentId;
-
-              return (
-                <CommentThread
-                  comment={thread}
-                  replies={repliesByParent[thread.comment_id] || []}
-                  users={users}
-                  currentUserId={currentUserId}
-                  onReply={onReplyComment}
-                  onResolve={onResolveComment}
-                  onToggleReaction={onToggleReaction}
-                  onDelete={onDeleteComment}
-                  isHighlighted={isHighlighted}
-                  scrollRef={commentRefs.current[thread.comment_id]}
-                />
-              );
+          <Collapse
+            defaultActiveKey={Object.keys(groupedThreads)}
+            style={{ border: 'none', backgroundColor: 'transparent' }}
+            styles={{
+              content: { padding: '4px 0' }, // Reduced padding
             }}
+            items={Object.entries(groupedThreads).map(([groupKey, group]) => ({
+              key: groupKey,
+              label: (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {group.color && (
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        // Transparent fill matching zone background
+                        backgroundColor: `${group.color}${Math.round(ZONE_CONTENT_OPACITY * 255)
+                          .toString(16)
+                          .padStart(2, '0')}`,
+                        // Solid border in zone color
+                        border: `1px solid ${group.color}`,
+                        borderRadius: 2,
+                      }}
+                    />
+                  )}
+                  <Text strong>{group.label}</Text>
+                  <Badge
+                    count={group.threads.length}
+                    style={{ backgroundColor: token.colorPrimaryBg }}
+                  />
+                </div>
+              ),
+              children: (
+                <List
+                  dataSource={group.threads}
+                  renderItem={thread => {
+                    // Create or get ref for this thread
+                    if (!commentRefs.current[thread.comment_id]) {
+                      commentRefs.current[thread.comment_id] = React.createRef<HTMLDivElement>();
+                    }
+
+                    const isHighlighted =
+                      thread.comment_id === hoveredCommentId ||
+                      thread.comment_id === selectedCommentId;
+
+                    return (
+                      <CommentThread
+                        comment={thread}
+                        replies={repliesByParent[thread.comment_id] || []}
+                        users={users}
+                        currentUserId={currentUserId}
+                        onReply={onReplyComment}
+                        onResolve={onResolveComment}
+                        onToggleReaction={onToggleReaction}
+                        onDelete={onDeleteComment}
+                        isHighlighted={isHighlighted}
+                        scrollRef={commentRefs.current[thread.comment_id]}
+                      />
+                    );
+                  }}
+                />
+              ),
+            }))}
           />
         )}
       </div>
@@ -643,8 +749,8 @@ export const CommentsPanel: React.FC<CommentsPanelProps> = ({
           placeholder="Add a comment..."
           enterButton={<SendOutlined />}
           value={commentInputValue}
-          onChange={(e) => setCommentInputValue(e.target.value)}
-          onSearch={(value) => {
+          onChange={e => setCommentInputValue(e.target.value)}
+          onSearch={value => {
             if (value.trim()) {
               onSendComment(value);
               setCommentInputValue('');
