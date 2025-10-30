@@ -1,6 +1,6 @@
 {
   "name": "Agor Playground (Recommended - Fast npm install)",
-  // Cache bust: 2025-10-29-v5 - Onboarding auth guidance + modal fixes (0.4.7)
+  // Cache bust: 2025-10-29-v6 - Fix React hooks and JSX element reuse errors (0.4.8)
   "build": {
     "dockerfile": "playground/Dockerfile",
     "context": "..",

@@ -54,8 +54,8 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
     onClose();
   };
 
-  // Reusable authentication section
-  const AuthenticationSection = (
+  // Reusable authentication section (function to avoid React object reuse issues)
+  const renderAuthenticationSection = () => (
     <Space
       direction="vertical"
       size="small"
@@ -206,7 +206,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
             </Text>
           </Space>
 
-          {AuthenticationSection}
+          {renderAuthenticationSection()}
 
           <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
             <Button type="primary" onClick={handleDismiss}>
@@ -268,7 +268,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
             You can start using existing resources or create your own!
           </Paragraph>
 
-          {AuthenticationSection}
+          {renderAuthenticationSection()}
 
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
             <Button type="link" href="https://agor.live/guide/getting-started" target="_blank">
@@ -361,7 +361,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
           )}
         </Space>
 
-        {AuthenticationSection}
+        {renderAuthenticationSection()}
 
         <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
           <Button type="primary" onClick={handleDismiss}>

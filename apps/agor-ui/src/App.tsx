@@ -90,6 +90,16 @@ function AppContent() {
   // Fall back to user from auth if users array hasn't loaded yet
   const currentUser = user ? users.find(u => u.user_id === user.user_id) || user : null;
 
+  // Memoize welcome modal stats to prevent unnecessary re-renders
+  const welcomeStats = useMemo(
+    () => ({
+      repoCount: repos.length,
+      worktreeCount: worktrees.length,
+      sessionCount: sessions.length,
+    }),
+    [repos.length, worktrees.length, sessions.length]
+  );
+
   // Show welcome modal if user hasn't completed onboarding
   useEffect(() => {
     // Only show modal if onboarding_completed is explicitly false (not undefined)
@@ -843,16 +853,6 @@ function AppContent() {
       setWelcomeModalOpen(true);
     }
   };
-
-  // Memoize welcome modal stats to prevent unnecessary re-renders
-  const welcomeStats = useMemo(
-    () => ({
-      repoCount: repos.length,
-      worktreeCount: worktrees.length,
-      sessionCount: sessions.length,
-    }),
-    [repos.length, worktrees.length, sessions.length]
-  );
 
   // Render main app
   return (
