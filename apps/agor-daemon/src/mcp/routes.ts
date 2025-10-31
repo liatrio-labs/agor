@@ -21,7 +21,6 @@ function coerceString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-
 /**
  * Setup MCP routes on FeathersJS app
  */
@@ -253,7 +252,7 @@ export function setupMCPRoutes(app: Application): void {
                   boardId: {
                     type: 'string',
                     description:
-                      'Board ID to immediately place the worktree on (positions to default coordinates).',
+                      "Board ID to immediately place the worktree on (positions to default coordinates). If not specified, defaults to the current session's board.",
                   },
                   issueUrl: {
                     type: 'string',
@@ -632,12 +631,10 @@ export function setupMCPRoutes(app: Application): void {
           const defaultBranch =
             coerceString((repo as { default_branch?: unknown }).default_branch) ?? 'main';
 
-          let createBranch =
-            typeof args?.createBranch === 'boolean' ? args.createBranch : true;
+          let createBranch = typeof args?.createBranch === 'boolean' ? args.createBranch : true;
           let ref = coerceString(args?.ref);
           let sourceBranch = coerceString(args?.sourceBranch);
-          let pullLatest =
-            typeof args?.pullLatest === 'boolean' ? args.pullLatest : undefined;
+          let pullLatest = typeof args?.pullLatest === 'boolean' ? args.pullLatest : undefined;
 
           if (ref && GIT_SHA_PATTERN.test(ref)) {
             createBranch = false;
@@ -672,7 +669,13 @@ export function setupMCPRoutes(app: Application): void {
             }
           }
 
-          const boardId = coerceString(args?.boardId);
+          // Default to current session's board if not specified
+          let boardId = coerceString(args?.boardId);
+          if (!boardId) {
+            const currentSession = await app.service('sessions').get(context.sessionId);
+            boardId = currentSession.board_id ?? undefined;
+          }
+
           let issueUrl: string | undefined;
           let pullRequestUrl: string | undefined;
 
