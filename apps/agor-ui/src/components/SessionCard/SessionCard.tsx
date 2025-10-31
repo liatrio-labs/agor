@@ -19,6 +19,10 @@ import { ToolIcon } from '../ToolIcon';
 
 const SESSION_CARD_MAX_WIDTH = 560;
 
+// Session title display configuration
+const SESSION_TITLE_MAX_LINES = 2; // Limit title to 2 lines with CSS line-clamp
+const SESSION_TITLE_FALLBACK_CHARS = 150; // Fallback truncation for unsupported browsers
+
 interface SessionCardProps {
   session: Session;
   tasks: Task[];
@@ -229,12 +233,26 @@ const SessionCard = ({
       <div className="nodrag">
         {/* Title/Description */}
         {(session.title || session.description) && (
-          <Typography.Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8 }}>
+          <Typography.Text
+            strong
+            style={{
+              fontSize: 16,
+              display: '-webkit-box',
+              WebkitLineClamp: SESSION_TITLE_MAX_LINES,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              marginBottom: 8,
+            }}
+          >
             {(() => {
               const displayText = session.title || session.description;
-              // Truncate description (first prompt) to 100 chars if no explicit title
-              if (!session.title && session.description && session.description.length > 100) {
-                return session.description.substring(0, 100) + '...';
+              // Fallback truncation for browsers that don't support line-clamp
+              if (
+                !session.title &&
+                session.description &&
+                session.description.length > SESSION_TITLE_FALLBACK_CHARS
+              ) {
+                return session.description.substring(0, SESSION_TITLE_FALLBACK_CHARS) + '...';
               }
               return displayText;
             })()}

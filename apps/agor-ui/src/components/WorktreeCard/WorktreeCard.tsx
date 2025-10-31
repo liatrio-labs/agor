@@ -24,6 +24,10 @@ import { buildSessionTree, type SessionTreeNode } from './buildSessionTree';
 
 const _WORKTREE_CARD_MAX_WIDTH = 600;
 
+// Session title display configuration for tree view
+const SESSION_TITLE_MAX_LINES = 1; // Limit to 1 line in compact tree view
+const SESSION_TITLE_FALLBACK_CHARS = 80; // Fallback truncation for unsupported browsers
+
 interface WorktreeCardProps {
   worktree: Worktree;
   sessions: Session[];
@@ -184,15 +188,22 @@ const WorktreeCard = ({
             style={{
               fontSize: 12,
               flex: 1,
+              display: '-webkit-box',
+              WebkitLineClamp: SESSION_TITLE_MAX_LINES,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
               wordBreak: 'break-word',
-              overflowWrap: 'break-word',
             }}
           >
             {(() => {
               const displayText = session.title || session.description || session.agentic_tool;
-              // Truncate description (first prompt) to 60 chars for compact tree view
-              if (!session.title && session.description && session.description.length > 60) {
-                return session.description.substring(0, 60) + '...';
+              // Fallback truncation for browsers that don't support line-clamp
+              if (
+                !session.title &&
+                session.description &&
+                session.description.length > SESSION_TITLE_FALLBACK_CHARS
+              ) {
+                return session.description.substring(0, SESSION_TITLE_FALLBACK_CHARS) + '...';
               }
               return displayText;
             })()}
