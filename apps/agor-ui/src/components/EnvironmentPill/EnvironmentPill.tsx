@@ -40,7 +40,7 @@ export function EnvironmentPill({
         <Tag
           color="default"
           style={{ cursor: 'pointer', userSelect: 'none', opacity: 0.6 }}
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation();
             onEdit?.();
           }}
@@ -122,30 +122,30 @@ export function EnvironmentPill({
   };
 
   return (
-    <Tooltip title={getTooltipText()}>
-      <Tag
-        color={getColor()}
-        style={{
-          userSelect: 'none',
-          padding: 0,
-          overflow: 'hidden',
-          lineHeight: '20px',
-          display: 'inline-flex',
-          alignItems: 'stretch',
-        }}
+    <Tag
+      color={getColor()}
+      style={{
+        userSelect: 'none',
+        padding: 0,
+        overflow: 'hidden',
+        lineHeight: '20px',
+        display: 'inline-flex',
+        alignItems: 'stretch',
+      }}
+    >
+      <Space
+        size={0}
+        style={{ width: '100%', display: 'inline-flex', alignItems: 'center' }}
+        direction="horizontal"
       >
-        <Space
-          size={0}
-          style={{ width: '100%', display: 'inline-flex', alignItems: 'center' }}
-          direction="horizontal"
-        >
-          {/* Left section - clickable to open URL (when running) */}
-          {env?.status === 'running' && environmentUrl ? (
+        {/* Left section - clickable to open URL (when running) */}
+        {env?.status === 'running' && environmentUrl ? (
+          <Tooltip title={`Open environment - ${environmentUrl}`}>
             <a
               href={environmentUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -160,7 +160,9 @@ export function EnvironmentPill({
                 <span style={{ fontFamily: token.fontFamilyCode, lineHeight: 1 }}>env</span>
               </Space>
             </a>
-          ) : (
+          </Tooltip>
+        ) : (
+          <Tooltip title={getTooltipText()}>
             <div
               style={{
                 padding: '0 7px',
@@ -174,93 +176,101 @@ export function EnvironmentPill({
                 <span style={{ fontFamily: token.fontFamilyCode, lineHeight: 1 }}>env</span>
               </Space>
             </div>
-          )}
+          </Tooltip>
+        )}
 
-          {/* Environment controls */}
-          {(onStartEnvironment || onStopEnvironment) && hasConfig && (
-            <Space
-              size={2}
-              style={{
-                padding: '0 6px',
-                borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
-                height: '22px',
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              {onStartEnvironment && (
-                <Tooltip title={status === 'running' ? 'Environment running' : 'Start environment'}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={isProcessing && status === 'starting' ? <LoadingOutlined /> : <PlayCircleOutlined />}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (!startDisabled) {
-                        onStartEnvironment(worktree.worktree_id);
-                      }
-                    }}
-                    disabled={startDisabled}
-                    style={{
-                      height: 22,
-                      width: 22,
-                      minWidth: 22,
-                      padding: 0,
-                    }}
-                  />
-                </Tooltip>
-              )}
-              {onStopEnvironment && (
-                <Tooltip
-                  title={
-                    status === 'running'
-                      ? 'Stop environment'
-                      : status === 'starting'
+        {/* Environment controls */}
+        {(onStartEnvironment || onStopEnvironment) && hasConfig && (
+          <Space
+            size={2}
+            style={{
+              padding: '0 6px',
+              borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
+              height: '22px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            {onStartEnvironment && (
+              <Tooltip title={status === 'running' ? 'Environment running' : 'Start environment'}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={
+                    isProcessing && status === 'starting' ? (
+                      <LoadingOutlined />
+                    ) : (
+                      <PlayCircleOutlined />
+                    )
+                  }
+                  onClick={event => {
+                    event.stopPropagation();
+                    if (!startDisabled) {
+                      onStartEnvironment(worktree.worktree_id);
+                    }
+                  }}
+                  disabled={startDisabled}
+                  style={{
+                    height: 22,
+                    width: 22,
+                    minWidth: 22,
+                    padding: 0,
+                  }}
+                />
+              </Tooltip>
+            )}
+            {onStopEnvironment && (
+              <Tooltip
+                title={
+                  status === 'running'
+                    ? 'Stop environment'
+                    : status === 'starting'
                       ? 'Environment is starting'
                       : 'Environment not running'
+                }
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  icon={
+                    isProcessing && status === 'stopping' ? <LoadingOutlined /> : <StopOutlined />
                   }
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={isProcessing && status === 'stopping' ? <LoadingOutlined /> : <StopOutlined />}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (!stopDisabled) {
-                        onStopEnvironment(worktree.worktree_id);
-                      }
-                    }}
-                    disabled={stopDisabled}
-                    style={{
-                      height: 22,
-                      width: 22,
-                      minWidth: 22,
-                      padding: 0,
-                    }}
-                  />
-                </Tooltip>
-              )}
-            </Space>
-          )}
+                  onClick={event => {
+                    event.stopPropagation();
+                    if (!stopDisabled) {
+                      onStopEnvironment(worktree.worktree_id);
+                    }
+                  }}
+                  disabled={stopDisabled}
+                  style={{
+                    height: 22,
+                    width: 22,
+                    minWidth: 22,
+                    padding: 0,
+                  }}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        )}
 
-          {/* Edit button - always visible */}
-          <Tooltip title="Configure environment">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={handleEdit}
-              style={{
-                padding: 0,
-                height: 22,
-                width: 22,
-                minWidth: 22,
-                borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
-              }}
-            />
-          </Tooltip>
-        </Space>
-      </Tag>
-    </Tooltip>
+        {/* Edit button - always visible */}
+        <Tooltip title="Configure environment">
+          <Button
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={handleEdit}
+            style={{
+              padding: 0,
+              height: 22,
+              width: 22,
+              minWidth: 22,
+              borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
+            }}
+          />
+        </Tooltip>
+      </Space>
+    </Tag>
   );
 }
