@@ -159,7 +159,10 @@ export async function initializeDatabase(db: Database): Promise<void> {
 }
 
 /**
- * Seed initial data (default board and admin user)
+ * Seed initial data (default board only)
+ *
+ * Note: Does NOT create a default admin user.
+ * Admin users must be created explicitly via `agor user create-admin` or during `agor init`
  */
 export async function seedInitialData(db: Database): Promise<void> {
   try {
@@ -192,41 +195,6 @@ export async function seedInitialData(db: Database): Promise<void> {
       `);
 
       console.log('✅ Main Board created');
-    }
-
-    // 2. Check if any users exist
-    const userCountResult = await db.select({ count: sql<number>`count(*)` }).from(users).get();
-    const userCount = userCountResult?.count || 0;
-
-    if (userCount === 0) {
-      // Create default admin user
-      const userId = generateId();
-      const defaultEmail = 'admin@agor.live';
-      const defaultPassword = 'admin'; // User should change this immediately
-      const hashedPassword = await bcryptjs.hash(defaultPassword, 10);
-
-      await db.run(sql`
-        INSERT INTO users (user_id, email, password, name, emoji, role, onboarding_completed, created_at, updated_at, data)
-        VALUES (
-          ${userId},
-          ${defaultEmail},
-          ${hashedPassword},
-          ${'Admin'},
-          ${'👑'},
-          ${'owner'},
-          ${0},
-          ${now},
-          ${now},
-          ${JSON.stringify({
-            preferences: {},
-          })}
-        )
-      `);
-
-      console.log('✅ Default admin user created');
-      console.log('   📧 Email: admin@agor.live');
-      console.log('   🔑 Password: admin');
-      console.log('   ⚠️  IMPORTANT: Please change the password after first login!');
     }
   } catch (error) {
     throw new MigrationError(

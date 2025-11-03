@@ -89,7 +89,7 @@ export default class Init extends Command {
   private async listDirs(path: string): Promise<string[]> {
     try {
       const entries = await readdir(path, { withFileTypes: true });
-      return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+      return entries.filter(e => e.isDirectory()).map(e => e.name);
     } catch {
       return [];
     }
@@ -300,10 +300,34 @@ export default class Init extends Command {
       await this.promptAuthSetup(dbPath);
       await this.promptApiKeys();
     } else {
-      // With --force, enable auth by default (multiplayer mode)
+      // With --force, enable auth by default (multiplayer mode) with default admin user
       await setConfigValue('daemon.requireAuth', true);
       await setConfigValue('daemon.allowAnonymous', false);
       this.log(`${chalk.green('   ✓')} Enabled authentication (multiplayer mode)`);
+
+      // Create default admin user with credentials displayed to user
+      try {
+        const db = createDatabase({ url: `file:${dbPath}` });
+        const defaultEmail = 'admin@agor.live';
+        const defaultPassword = 'admin';
+
+        await createUser(db, {
+          email: defaultEmail,
+          password: defaultPassword,
+          name: 'Admin',
+          role: 'admin',
+        });
+
+        this.log(`${chalk.green('   ✓')} Default admin user created`);
+        this.log(chalk.dim(`     Email: ${defaultEmail}`));
+        this.log(chalk.dim(`     Password: ${defaultPassword}`));
+        this.log(chalk.yellow(`     ⚠️  Change this password after first login!`));
+      } catch (error) {
+        // Admin user might already exist, which is fine
+        if (error instanceof Error && !error.message.includes('UNIQUE constraint failed')) {
+          throw error;
+        }
+      }
     }
 
     // Success summary
@@ -402,23 +426,10 @@ export default class Init extends Command {
     await setConfigValue('daemon.allowAnonymous', false);
     this.log(`${chalk.green('   ✓')} Enabled authentication`);
 
-    // Prompt to create admin user
+    // Admin user is required when auth is enabled
     this.log('');
-    const { createAdmin } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'createAdmin',
-        message: 'Create an admin user?',
-        default: true,
-      },
-    ]);
-
-    if (!createAdmin) {
-      this.log('');
-      this.log(chalk.yellow('⚠ You must create an admin user before starting the daemon:'));
-      this.log(chalk.gray('  agor user create-admin'));
-      return;
-    }
+    this.log(chalk.bold('👤 Create your admin account:'));
+    this.log('');
 
     // Prompt for user details
     const { email, username, password } = await inquirer.prompt([
@@ -459,30 +470,16 @@ export default class Init extends Command {
     ]);
 
     // Create admin user directly in database (no daemon required)
-    try {
-      const db = createDatabase({ url: `file:${dbPath}` });
+    const db = createDatabase({ url: `file:${dbPath}` });
 
-      const user = await createUser(db, {
-        email,
-        password,
-        name: username,
-        role: 'admin',
-      });
+    const user = await createUser(db, {
+      email,
+      password,
+      name: username,
+      role: 'admin',
+    });
 
-      this.log(
-        chalk.green('   ✓') +
-          ` Admin user created successfully (ID: ${chalk.gray(user.user_id.substring(0, 8))})`
-      );
-    } catch (error) {
-      this.log('');
-      this.log(chalk.red('✗ Failed to create admin user'));
-      if (error instanceof Error) {
-        this.log(chalk.red(`  ${error.message}`));
-      }
-      this.log('');
-      this.log(chalk.gray('You can create an admin user later with:'));
-      this.log(chalk.gray('  agor user create-admin'));
-    }
+    this.log(chalk.green('   ✓') + ` Admin user created (${chalk.gray(email)})`);
   }
 
   /**

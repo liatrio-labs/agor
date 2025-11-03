@@ -1,3 +1,5 @@
+import { copyFileSync, cpSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
@@ -37,4 +39,9 @@ export default defineConfig({
     'node:os',
     'node:url',
   ],
+  onSuccess: async () => {
+    // Copy drizzle migrations folder to dist so it's available in npm package
+    cpSync('drizzle', 'dist/drizzle', { recursive: true });
+    console.log('✅ Copied drizzle migrations to dist/');
+  },
 });
