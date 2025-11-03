@@ -280,14 +280,16 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
             <Text type="secondary" style={{ fontSize: '12px' }}>
               Number of scheduled sessions to keep (0 = keep all)
             </Text>
-            <InputNumber
-              value={retention}
-              onChange={value => setRetention(value || 0)}
-              min={0}
-              max={100}
-              style={{ width: '150px' }}
-              addonAfter="sessions"
-            />
+            <Space.Compact>
+              <InputNumber
+                value={retention}
+                onChange={value => setRetention(value || 0)}
+                min={0}
+                max={100}
+                style={{ width: '150px' }}
+              />
+              <Input value="sessions" disabled style={{ width: '80px', textAlign: 'center' }} />
+            </Space.Compact>
           </Space>
         </Card>
 

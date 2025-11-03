@@ -39,14 +39,18 @@ import { CursorNode } from './canvas/CursorNode';
 import { useBoardObjects } from './canvas/useBoardObjects';
 import {
   findIntersectingObjects,
+  findZoneAtPosition,
   findZoneForNode,
   type ZoneCollision,
 } from './canvas/utils/collisionDetection';
 import { getWorktreeParentInfo, getZoneParentInfo } from './canvas/utils/commentUtils';
 import {
+  absoluteToRelative,
   calculateStoragePosition,
   getDragAbsolutePosition,
+  getNodeAbsolutePosition,
   type ParentInfo,
+  relativeToAbsolute,
 } from './canvas/utils/coordinateTransforms';
 import { getAbsoluteNodePosition } from './canvas/utils/nodePositionUtils';
 import { ZoneTriggerModal } from './canvas/ZoneTriggerModal';
@@ -399,12 +403,13 @@ const SessionCanvas = ({
 
       // Check if worktree is pinned to a zone (via board_object.zone_id)
       // Note: zone_id in database already has 'zone-' prefix (e.g., 'zone-1234')
-      const zoneId = boardObject?.zone_id; // Zone ID with 'zone-' prefix
-      const dbZoneId = zoneId?.replace('zone-', ''); // Strip prefix for board.objects lookup
+      const zoneId = boardObject?.zone_id; // Zone ID with 'zone-' prefix (for React Flow parentId)
+
+      const dbZoneId = zoneId?.replace('zone-', ''); // Strip prefix for zoneLabels lookup
       const zoneName = dbZoneId ? zoneLabels[dbZoneId] || 'Unknown Zone' : undefined;
       const zoneColor =
-        dbZoneId && board?.objects?.[dbZoneId]
-          ? (board.objects[dbZoneId] as { color?: string }).color
+        zoneId && board?.objects?.[zoneId]
+          ? (board.objects[zoneId] as { color?: string }).color
           : undefined;
 
       // Get sessions for this worktree
@@ -571,7 +576,9 @@ const SessionCanvas = ({
 
         if (rel.parent_type === 'zone') {
           // Parent is a zone - validate zone exists
-          const zone = board?.objects?.[rel.parent_id];
+          // Note: rel.parent_id is stored without 'zone-' prefix, but board.objects keys have it
+          const zoneKey = `zone-${rel.parent_id}`;
+          const zone = board?.objects?.[zoneKey];
           if (zone?.type === 'zone') {
             const info = getZoneParentInfo(rel.parent_id, board ?? undefined);
             parentId = info.parentId;
@@ -656,11 +663,23 @@ const SessionCanvas = ({
 
         // If we have a local position (user is dragging or just dragged), use it
         if (localPosition) {
-          const incomingPosition = newNode.position;
-          // Check if WebSocket confirmed our drag (positions are now close)
+          // Get the incoming position in ABSOLUTE coordinates for comparison
+          // If node has parentId, position is relative to parent - must convert to absolute
+          let incomingAbsolutePosition = newNode.position;
+          if (newNode.parentId) {
+            // Parent could be a zone or another worktree
+            const parentNode = [...initialNodes, ...existingZones].find(
+              n => n.id === newNode.parentId
+            );
+            if (parentNode) {
+              incomingAbsolutePosition = relativeToAbsolute(newNode.position, parentNode.position);
+            }
+          }
+
+          // Check if WebSocket confirmed our drag (absolute positions are now close)
           const positionConfirmed =
-            Math.abs(localPosition.x - incomingPosition.x) <= 1 &&
-            Math.abs(localPosition.y - incomingPosition.y) <= 1;
+            Math.abs(localPosition.x - incomingAbsolutePosition.x) <= 1 &&
+            Math.abs(localPosition.y - incomingAbsolutePosition.y) <= 1;
 
           if (positionConfirmed) {
             // WebSocket confirmed our position, clear the local override
@@ -668,8 +687,20 @@ const SessionCanvas = ({
             return { ...newNode, selected: existingNode?.selected };
           }
 
-          // Still waiting for confirmation or another client moved it, keep local position
-          return { ...newNode, position: localPosition, selected: existingNode?.selected };
+          // Still waiting for confirmation or another client moved it
+          // If node now has parentId, convert local absolute position to relative
+          let positionToUse = localPosition;
+          if (newNode.parentId) {
+            // Parent could be a zone or another worktree
+            const parentNode = [...initialNodes, ...existingZones].find(
+              n => n.id === newNode.parentId
+            );
+            if (parentNode) {
+              positionToUse = absoluteToRelative(localPosition, parentNode.position);
+            }
+          }
+
+          return { ...newNode, position: positionToUse, selected: existingNode?.selected };
         }
 
         // No local override, use incoming position
@@ -743,11 +774,20 @@ const SessionCanvas = ({
         const localPosition = localPositionsRef.current[newNode.id];
 
         if (localPosition) {
-          const incomingPosition = newNode.position;
-          // Check if WebSocket confirmed our drag (positions are now close)
+          // Get the incoming position in ABSOLUTE coordinates for comparison
+          // If node has parentId, position is relative to parent - must convert to absolute
+          let incomingAbsolutePosition = newNode.position;
+          if (newNode.parentId) {
+            const parentNode = [...worktrees, ...zones].find(n => n.id === newNode.parentId);
+            if (parentNode) {
+              incomingAbsolutePosition = relativeToAbsolute(newNode.position, parentNode.position);
+            }
+          }
+
+          // Check if WebSocket confirmed our drag (absolute positions are now close)
           const positionConfirmed =
-            Math.abs(localPosition.x - incomingPosition.x) <= 1 &&
-            Math.abs(localPosition.y - incomingPosition.y) <= 1;
+            Math.abs(localPosition.x - incomingAbsolutePosition.x) <= 1 &&
+            Math.abs(localPosition.y - incomingAbsolutePosition.y) <= 1;
 
           if (positionConfirmed) {
             // WebSocket confirmed our position, clear the local override
@@ -755,8 +795,17 @@ const SessionCanvas = ({
             return newNode;
           }
 
-          // Still waiting for confirmation, keep local position
-          return { ...newNode, position: localPosition };
+          // Still waiting for confirmation
+          // If node now has parentId, convert local absolute position to relative
+          let positionToUse = localPosition;
+          if (newNode.parentId) {
+            const parentNode = [...worktrees, ...zones].find(n => n.id === newNode.parentId);
+            if (parentNode) {
+              positionToUse = absoluteToRelative(localPosition, parentNode.position);
+            }
+          }
+
+          return { ...newNode, position: positionToUse };
         }
 
         return newNode;
@@ -856,9 +905,11 @@ const SessionCanvas = ({
   // Handle node drag - track local position changes
   const handleNodeDrag: NodeDragHandler = useCallback((_event, node) => {
     // Track this position locally so we don't get overwritten by WebSocket updates
+    // IMPORTANT: Store ABSOLUTE position, not relative!
+    const absolutePos = node.positionAbsolute || node.position;
     localPositionsRef.current[node.id] = {
-      x: node.position.x,
-      y: node.position.y,
+      x: absolutePos.x,
+      y: absolutePos.y,
     };
   }, []);
 
@@ -871,15 +922,18 @@ const SessionCanvas = ({
       isDraggingRef.current = false;
 
       // Track final position locally
+      // IMPORTANT: Store ABSOLUTE position, not relative!
+      const absolutePos = node.positionAbsolute || node.position;
       localPositionsRef.current[node.id] = {
-        x: node.position.x,
-        y: node.position.y,
+        x: absolutePos.x,
+        y: absolutePos.y,
       };
 
       // Accumulate position updates
+      // IMPORTANT: Store ABSOLUTE position for consistency!
       pendingLayoutUpdatesRef.current[node.id] = {
-        x: node.position.x,
-        y: node.position.y,
+        x: absolutePos.x,
+        y: absolutePos.y,
       };
 
       // Clear existing timer
@@ -921,8 +975,10 @@ const SessionCanvas = ({
               // Comment pin moved - extract comment_id from node id
               const commentId = nodeId.replace('comment-', '');
 
-              // Get absolute position (handles relative positions correctly)
-              const absolutePosition = getDragAbsolutePosition(draggedNode, currentNodes);
+              // Use the absolute position we stored at drag time
+              // Don't recalculate from draggedNode because WebSocket might have already
+              // updated it with a parentId, making draggedNode.position relative
+              const absolutePosition = position;
 
               // Find zones/worktrees that the comment intersects with at this absolute position
               const { worktreeNode, zoneNode } = findIntersectingObjects(
@@ -952,12 +1008,37 @@ const SessionCanvas = ({
                 newReactFlowParentId, // Track new parentId for immediate React Flow update
               });
             } else if (draggedNode?.type === 'worktreeNode') {
-              // Get absolute position for collision detection (handles relative positions correctly)
-              const absolutePosition = getDragAbsolutePosition(draggedNode, currentNodes);
+              // Use the absolute position we stored at drag time
+              // Don't recalculate from draggedNode because WebSocket might have already
+              // updated it with a parentId, making draggedNode.position relative
+              const absolutePosition = position;
 
-              // Check if worktree was dropped on a zone (using absolute coordinates)
-              const zoneCollision = findZoneForNode(draggedNode, currentNodes, board.objects);
+              // Check if worktree was dropped on a zone
+              // Calculate center point for collision (use actual node dimensions if available)
+              const nodeWidth = draggedNode.width || 500;
+              const nodeHeight = draggedNode.height || 200;
+              const center = {
+                x: absolutePosition.x + nodeWidth / 2,
+                y: absolutePosition.y + nodeHeight / 2,
+              };
+
+              // Find zone at center point
+              const zoneCollision = findZoneAtPosition(center, board.objects);
               const droppedZoneId = zoneCollision?.zoneId;
+
+              // Get the zone's ACTUAL position from React Flow nodes, not board.objects
+              // board.objects might be stale if the zone was recently moved
+              let zonePosition = zoneCollision
+                ? { x: zoneCollision.zoneData.x, y: zoneCollision.zoneData.y }
+                : null;
+
+              if (droppedZoneId) {
+                const zoneNode = currentNodes.find(n => n.id === droppedZoneId);
+                if (zoneNode) {
+                  // Use the zone's current React Flow position (always absolute for zones)
+                  zonePosition = { x: zoneNode.position.x, y: zoneNode.position.y };
+                }
+              }
 
               // Check if worktree was already pinned to a zone before this drag
               const existingBoardObject = boardObjects.find(
@@ -966,15 +1047,13 @@ const SessionCanvas = ({
               const oldZoneId = existingBoardObject?.zone_id;
 
               // Calculate position to store based on new parent
-              const newParent: ParentInfo | null = droppedZoneId
-                ? {
-                    id: droppedZoneId,
-                    position: {
-                      x: zoneCollision!.zoneData.x,
-                      y: zoneCollision!.zoneData.y,
-                    },
-                  }
-                : null;
+              const newParent: ParentInfo | null =
+                droppedZoneId && zonePosition
+                  ? {
+                      id: droppedZoneId,
+                      position: zonePosition,
+                    }
+                  : null;
 
               const positionToStore = calculateStoragePosition(absolutePosition, newParent);
 
@@ -1129,7 +1208,8 @@ const SessionCanvas = ({
                   `⚠️ Zone ${parentId} not found for comment ${comment_id}, using absolute position`
                 );
                 commentData.position = { absolute: position };
-                commentData.worktree_id = undefined;
+                // biome-ignore lint/suspicious/noExplicitAny: need null to clear DB field, not undefined
+                commentData.worktree_id = null as any;
               }
             } else if (parentId && parentType === 'worktree') {
               // Comment pinned to worktree
@@ -1154,15 +1234,23 @@ const SessionCanvas = ({
                   `⚠️ Worktree ${parentId} not found for comment ${comment_id}, using absolute position`
                 );
                 commentData.position = { absolute: position };
-                commentData.worktree_id = undefined;
+                // biome-ignore lint/suspicious/noExplicitAny: need null to clear DB field, not undefined
+                commentData.worktree_id = null as any;
               }
             } else {
               // Free-floating comment - use absolute positioning
               commentData.position = { absolute: position };
-              commentData.worktree_id = undefined;
+              // IMPORTANT: Use null to explicitly clear worktree association
+              // (undefined would be omitted from the patch, leaving old value)
+              // biome-ignore lint/suspicious/noExplicitAny: need null to clear DB field, not undefined
+              commentData.worktree_id = null as any;
             }
 
             await client.service('board-comments').patch(comment_id, commentData);
+
+            // Clear localPositionsRef immediately after patching
+            // We've saved the correct position to DB, no need to keep overriding
+            delete localPositionsRef.current[`comment-${comment_id}`];
 
             // Immediately update React Flow node to reflect new parentId
             // This prevents visual glitches while waiting for WebSocket sync
@@ -1179,10 +1267,12 @@ const SessionCanvas = ({
                       const parent = prevNodes.find(p => p.id === newReactFlowParentId);
                       if (parent) {
                         const parentAbsPos = getNodeAbsolutePosition(parent, prevNodes);
-                        updates.position = calculateStoragePosition(position, {
+                        const relativePos = calculateStoragePosition(position, {
                           id: newReactFlowParentId,
                           position: parentAbsPos,
                         });
+
+                        updates.position = relativePos;
                       }
                     } else {
                       // No parent - use absolute position
