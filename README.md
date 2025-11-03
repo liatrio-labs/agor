@@ -37,7 +37,12 @@ Orchestrate Claude Code, Codex, and Gemini sessions on a multiplayer canvas. Man
 
 **[→ Watch unscripted demo on YouTube](https://www.youtube.com/watch?v=qiYHw20zjzE)** (13 minutes)
 
-> ⭐️ I pledge to fix a GitHub issue for every star Agor gets :)
+---
+
+<div align="center">
+  <h3>✨ Pledge ✨</h3>
+  <p><strong>⭐️ I pledge to fix a GitHub issue for every star Agor gets :)</strong></p>
+</div>
 
 ---
 
