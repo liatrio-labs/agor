@@ -8,31 +8,6 @@ Orchestrate Claude Code, Codex, and Gemini sessions on a multiplayer canvas. Man
 
 ---
 
-## Installation
-
-```bash
-npm install -g agor-live
-```
-
-## Quick Start
-
-```bash
-# 1. Initialize (creates ~/.agor/ and database)
-agor init
-
-# 2. Start the daemon
-agor daemon start
-
-# 3. Open the UI
-agor open
-```
-
-**Try in Codespaces:**
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?skip_quickstart=true&machine=basicLinux32gb&repo=1069864589&ref=main&devcontainer_path=.devcontainer%2Fdevcontainer.json&geo=UsWest)
-
----
-
 ## See It In Action
 
 <div align="center">
@@ -62,42 +37,67 @@ agor open
 
 **[→ Watch unscripted demo on YouTube](https://www.youtube.com/watch?v=qiYHw20zjzE)** (13 minutes)
 
+> ⭐️ I pledge to fix a GitHub issue for every star Agor gets :)
+
+---
+
+## Installation
+
+```bash
+npm install -g agor-live
+```
+
+## Quick Start
+
+```bash
+# 1. Initialize (creates ~/.agor/ and database)
+agor init
+
+# 2. Start the daemon
+agor daemon start
+
+# 3. Open the UI
+agor open
+```
+
+**Try in Codespaces:**
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?skip_quickstart=true&machine=basicLinux32gb&repo=1069864589&ref=main&devcontainer_path=.devcontainer%2Fdevcontainer.json&geo=UsWest)
+
 ---
 
 ## Key Features
 
-### 🧩 Agent Orchestration Layer
+### 🧩 Agent Swarm Control
 
-- **Claude Code**, **Codex**, and **Gemini** support via extensible SDK — more coming soon.
-- Centralized **MCP configuration** — connect once, use across all tools.
-- Swap or parallelize agents with one command; easily hand off work when one model stalls.
+- Run as many **Claude Code**, **Codex**, and **Gemini** sessions as you can handle—simultaneously.
+- Agents in Agor can coordinate and supervise through the internal Agor MCP service.
+- Built-in **scheduler** triggers templated prompts on your cadence.
 
 ### 🌐 Multiplayer Spatial Canvas
 
-- Real-time collaboration with **cursor broadcasting** and **facepiles**.
-- Sessions live on a **dynamic board** — cluster by project, phase, or purpose.
-- **Scoped/spatial comments** pinned to boards, zones, or worktrees (Figma-style).
-- **Emoji reactions** for quick feedback; resolve threads when decisions are made.
+- Figma-esque board layout organizes your AI coding sessions across boards (full 2D canvases).
+- **Scoped/spatial comments** + reactions pinned to boards, zones, or worktrees (Figma-style).
+- WebSocket-powered cursor broadcasting and facepiles show teammates in real time.
 
 ### 🌲 Session Trees — Fork, Spawn, Coordinate
 
 - **Fork sessions** to explore alternatives without losing the original path.
 - **Spawn subsessions** for focused subtasks that report back to the parent.
-- Visualize the full genealogy — see how work branched, merged, and evolved.
-- Track outcomes across the tree to understand what approaches worked.
+- Visualize the session genealogy in "session trees"
 
 ### ⚙️ Zone Triggers — Workflows Made Spatial
 
 - Define **zones** on your board that trigger templated prompts when sessions are dropped.
 - Build **kanban-style flows** or custom pipelines: analyze → develop → review → deploy.
-- Combine with context templates to automate arbitrarily complex workflows.
+- Templated prompts -> "deeply analyze this github issue: {{ worktree.issue_url }}"
 
 ### 🌳 Shared, Persisted Dev Environments
 
 - **No more local environment juggling** — managed **git worktrees** with shared, persistent dev environments.
 - Sessions map to worktrees with running apps, auto-managed ports, and health monitoring.
 - **One-click control** — configure start/stop commands once, everyone on the team can use it.
-- Works with any stack: `docker compose up`, `npm run dev`, `./manage.py runserver`.
+- Powered by templated commands such as `PORT={{ add 9000 worktree.unique_id  }} docker compose -p {{ worktree.name}} up -d` to avoid conflicts while parallelizing things
 
 ### 🕹️ Real-Time Strategy for AI Teams
 

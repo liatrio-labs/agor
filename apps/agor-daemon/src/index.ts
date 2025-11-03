@@ -175,6 +175,9 @@ async function main() {
   const authStrategies = allowAnonymous ? ['jwt', 'anonymous'] : ['jwt'];
   const requireAuth = authenticate({ strategies: authStrategies });
 
+  // Helper: Return empty array for auth in anonymous mode (read-only services don't need auth)
+  const getReadAuthHooks = () => (allowAnonymous ? [] : [requireAuth]);
+
   // SECURITY: Enforce authentication in public deployments
   const isPublicDeployment =
     process.env.CODESPACES === 'true' ||
@@ -695,13 +698,16 @@ async function main() {
 
   app.service('board-objects').hooks({
     before: {
-      all: [requireAuth, requireMinimumRole('member', 'manage board objects')],
+      all: [
+        ...getReadAuthHooks(),
+        ...(allowAnonymous ? [] : [requireMinimumRole('member', 'manage board objects')]),
+      ],
     },
   });
 
   app.service('board-comments').hooks({
     before: {
-      all: [requireAuth],
+      all: getReadAuthHooks(),
       create: [requireMinimumRole('member', 'create board comments')],
       patch: [requireMinimumRole('member', 'update board comments')],
       remove: [requireMinimumRole('member', 'delete board comments')],
@@ -710,7 +716,10 @@ async function main() {
 
   app.service('repos').hooks({
     before: {
-      all: [requireAuth, requireMinimumRole('member', 'access repositories')],
+      all: [
+        ...getReadAuthHooks(),
+        ...(allowAnonymous ? [] : [requireMinimumRole('member', 'access repositories')]),
+      ],
       create: [requireMinimumRole('member', 'create repositories')],
       patch: [requireMinimumRole('member', 'update repositories')],
       remove: [requireMinimumRole('member', 'delete repositories')],
@@ -719,7 +728,10 @@ async function main() {
 
   app.service('worktrees').hooks({
     before: {
-      all: [requireAuth, requireMinimumRole('member', 'access worktrees')],
+      all: [
+        ...getReadAuthHooks(),
+        ...(allowAnonymous ? [] : [requireMinimumRole('member', 'access worktrees')]),
+      ],
       create: [requireMinimumRole('member', 'create worktrees')],
       patch: [requireMinimumRole('member', 'update worktrees')],
       remove: [requireMinimumRole('member', 'delete worktrees')],
@@ -728,7 +740,7 @@ async function main() {
 
   app.service('mcp-servers').hooks({
     before: {
-      all: [requireAuth],
+      all: getReadAuthHooks(),
       create: [requireMinimumRole('admin', 'create MCP servers')],
       patch: [requireMinimumRole('admin', 'update MCP servers')],
       remove: [requireMinimumRole('admin', 'delete MCP servers')],
@@ -826,7 +838,7 @@ async function main() {
   // Add hooks to inject created_by from authenticated user and populate repo from worktree
   app.service('sessions').hooks({
     before: {
-      all: [requireAuth],
+      all: getReadAuthHooks(),
       create: [
         requireMinimumRole('member', 'create sessions'),
         async context => {
@@ -977,7 +989,7 @@ async function main() {
 
   app.service('boards').hooks({
     before: {
-      all: [requireAuth],
+      all: getReadAuthHooks(),
       create: [
         requireMinimumRole('member', 'create boards'),
         async context => {

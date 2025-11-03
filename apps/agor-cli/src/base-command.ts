@@ -59,7 +59,7 @@ export abstract class BaseCommand extends Command {
           strategy: 'jwt',
           accessToken: storedAuth.accessToken,
         });
-      } catch (error) {
+      } catch (_error) {
         // Token invalid or expired - clear it and show login prompt
         const { clearToken } = await import('./lib/auth');
         await clearToken();
@@ -74,14 +74,49 @@ export abstract class BaseCommand extends Command {
         );
       }
     } else {
-      // No stored token - user needs to login
-      this.error(
-        chalk.red('✗ Not authenticated') +
-          '\n\n' +
-          chalk.dim('Please login to use the Agor CLI:') +
-          '\n  ' +
-          chalk.cyan('agor login')
-      );
+      // No stored token - check if daemon allows anonymous access
+      try {
+        const response = await fetch(`${this.daemonUrl}/health`);
+        const health = await response.json();
+        if (health.auth?.requireAuth) {
+          // Daemon requires authentication
+          this.error(
+            chalk.red('✗ Not authenticated') +
+              '\n\n' +
+              chalk.dim('This Agor instance requires authentication.') +
+              '\n' +
+              chalk.dim('Please login:') +
+              '\n  ' +
+              chalk.cyan('agor login')
+          );
+        }
+        // Try to authenticate with anonymous strategy
+        try {
+          await client.authenticate({ strategy: 'anonymous' });
+        } catch (_authError) {
+          // Anonymous auth also failed - give up
+          this.error(
+            chalk.red('✗ Authentication failed') +
+              '\n\n' +
+              chalk.dim('Please login:') +
+              '\n  ' +
+              chalk.cyan('agor login')
+          );
+        }
+      } catch (_error) {
+        // If we can't check auth status, try anonymous anyway
+        try {
+          await client.authenticate({ strategy: 'anonymous' });
+        } catch {
+          this.error(
+            chalk.red('✗ Not authenticated') +
+              '\n\n' +
+              chalk.dim('Please login to use the Agor CLI:') +
+              '\n  ' +
+              chalk.cyan('agor login')
+          );
+        }
+      }
     }
 
     return client;
@@ -103,6 +138,6 @@ export abstract class BaseCommand extends Command {
     client.io.close();
 
     // Give a brief moment for cleanup, then force exit
-    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    await new Promise<void>(resolve => setTimeout(resolve, 100));
   }
 }
