@@ -12,25 +12,13 @@ yes | pnpm install --reporter=default
 echo "🔨 Building @agor/core..."
 pnpm --filter @agor/core build
 
-# Initialize database if it doesn't exist
-if [ ! -f /root/.agor/agor.db ]; then
-  echo "📦 Initializing database..."
-  pnpm exec tsx packages/core/src/db/scripts/setup-db.ts
+# Initialize database (idempotent: skip if already exists)
+echo "📦 Initializing Agor environment..."
+pnpm agor init --skip-if-exists
 
-  # Wait a moment for database to be fully written
-  sleep 1
-
-  # Verify users table exists
-  echo "🔍 Verifying database schema..."
-  sqlite3 /root/.agor/agor.db "SELECT name FROM sqlite_master WHERE type='table' AND name='users';" || {
-    echo "❌ Users table not found! Database schema may be incomplete."
-    exit 1
-  }
-
-  echo "👤 Creating default admin user..."
-  # Create config with auth enabled (use DAEMON_PORT env var or default to 3030)
-  mkdir -p /root/.agor
-  cat > /root/.agor/config.yaml <<EOF
+# Always ensure auth is enabled in docker (create/overwrite config for multiplayer mode)
+mkdir -p /root/.agor
+cat > /root/.agor/config.yaml <<EOF
 daemon:
   port: ${DAEMON_PORT:-3030}
   host: localhost
@@ -38,11 +26,9 @@ daemon:
   requireAuth: true
 EOF
 
-  # Create admin user via CLI (uses defaults: admin@agor.live / admin)
-  pnpm --filter @agor/cli exec tsx bin/dev.ts user create-admin --force
-else
-  echo "📦 Database already exists"
-fi
+# Always create/update admin user (safe: only upserts)
+echo "👤 Ensuring default admin user exists..."
+pnpm --filter @agor/cli exec tsx bin/dev.ts user create-admin --force
 
 # Start daemon in background (use DAEMON_PORT env var or default to 3030)
 echo "📡 Starting daemon on port ${DAEMON_PORT:-3030}..."

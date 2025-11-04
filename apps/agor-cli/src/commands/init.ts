@@ -35,6 +35,11 @@ export default class Init extends Command {
         'Force re-initialization without prompts (deletes database, repos, and worktrees)',
       default: false,
     }),
+    'skip-if-exists': Flags.boolean({
+      description:
+        'Skip initialization if .agor/ directory already exists (idempotent, safe for Docker)',
+      default: false,
+    }),
   };
 
   private async pathExists(path: string): Promise<boolean> {
@@ -116,6 +121,16 @@ export default class Init extends Command {
 
     this.log('✨ Initializing Agor...\n');
 
+    // Determine base directory early
+    const baseDir = flags.local ? join(process.cwd(), '.agor') : join(homedir(), '.agor');
+
+    // If --skip-if-exists and directory already exists, exit gracefully
+    if (flags['skip-if-exists'] && (await this.pathExists(baseDir))) {
+      this.log(chalk.green('✓ Agor already initialized at: ') + chalk.cyan(baseDir));
+      this.log(chalk.dim('Skipping initialization (use --force to re-initialize)\n'));
+      return;
+    }
+
     // Show Codespaces-specific welcome if detected
     if (this.isCodespaces() && !flags.force) {
       this.log(chalk.cyan.bold('🚀 GitHub Codespaces detected!\n'));
@@ -128,8 +143,6 @@ export default class Init extends Command {
     }
 
     try {
-      // Determine base directory
-      const baseDir = flags.local ? join(process.cwd(), '.agor') : join(homedir(), '.agor');
       const dbPath = join(baseDir, 'agor.db');
       const reposDir = join(baseDir, 'repos');
       const worktreesDir = join(baseDir, 'worktrees');
