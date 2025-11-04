@@ -7,7 +7,8 @@
 
 import { access, constants, mkdir, readdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isDaemonRunning } from '@agor/core/api';
 import { loadConfig, setConfigValue } from '@agor/core/config';
 import { createDatabase, createUser, runMigrations, seedInitialData } from '@agor/core/db';
@@ -109,9 +110,26 @@ export default class Init extends Command {
 
   /**
    * Detect if running in dev mode (from source) vs agor-live (npm package)
+   *
+   * Dev mode = running from agor monorepo source
+   * Agor-live mode = running from npm package (globally installed or in node_modules)
    */
   private async isDevMode(): Promise<boolean> {
-    // Check if we're in the monorepo by looking for packages/core
+    // Get the directory where this file is running from
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+
+    // If running from node_modules, it's the npm package
+    if (__dirname.includes('node_modules')) {
+      return false;
+    }
+
+    // If running from dist/, it's the compiled npm package structure
+    if (__dirname.includes('/dist/')) {
+      return false;
+    }
+
+    // Otherwise, check if we're in the agor monorepo
     const corePackagePath = join(process.cwd(), 'packages', 'core');
     return this.pathExists(corePackagePath);
   }
