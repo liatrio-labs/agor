@@ -41,3 +41,7 @@ yarn-error.log*
 
 # Agor specific
 .agor/
+
+# Deployment scripts with credentials
+get-admin-token.sh
+create-liatrio-users.sh

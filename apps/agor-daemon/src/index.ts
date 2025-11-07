@@ -819,6 +819,7 @@ async function main() {
         },
       ],
       create: [
+        // Authenticate the request first (unless it's the first user being created)
         async context => {
           const params = context.params as AuthenticatedParams;
 
@@ -826,8 +827,13 @@ async function main() {
             return context;
           }
 
+          // Check if any users exist
           const existing = (await usersService.find({ query: { $limit: 1 } })) as Paginated<User>;
           if (existing.total > 0) {
+            // Users exist - require authentication
+            // Authenticate and populate params.user
+            await requireAuth(context);
+            // Now verify admin role
             ensureMinimumRole(params, 'admin', 'create users');
           }
 
