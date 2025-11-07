@@ -55,6 +55,7 @@ RUN apt-get update && apt-get install -y \
   git \
   curl \
   ca-certificates \
+  su-exec \
   && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm globally first (needed for AI CLI installations)
@@ -109,42 +110,47 @@ COPY --from=builder --chown=agor:agor /app/apps/agor-daemon/package.json ./apps/
 RUN mkdir -p /home/agor/.agor && chown -R agor:agor /home/agor/.agor
 
 # Create production entrypoint script
-COPY --chown=agor:agor <<'EOF' /usr/local/bin/docker-entrypoint-prod.sh
+# Note: This runs as root to fix volume permissions, then switches to agor user
+COPY <<'EOF' /usr/local/bin/docker-entrypoint-prod.sh
 #!/bin/sh
 set -e
 
 echo "🚀 Starting Agor production server..."
 
+# Fix volume permissions (Railway mounts volumes as root)
+# This must run as root before switching to agor user
+echo "🔧 Fixing volume permissions..."
+mkdir -p /home/agor/.agor
+chown -R agor:agor /home/agor/.agor
+echo "✅ Volume permissions fixed"
+
 # SECURITY: Ensure secure configuration for public deployments
 # Always create/overwrite config.yaml to enforce security settings
 echo "🔒 Ensuring secure configuration..."
-mkdir -p /home/agor/.agor
 cat > /home/agor/.agor/config.yaml <<YAML
 daemon:
   port: ${PORT:-3030}
   allowAnonymous: false
   requireAuth: true
 YAML
+chown agor:agor /home/agor/.agor/config.yaml
 
 echo "✅ Security configuration set (anonymous auth disabled)"
 
-# Initialize database if needed
+# Initialize database if needed (as agor user)
 if [ ! -f "/home/agor/.agor/agor.db" ]; then
   echo "📦 Initializing database..."
   cd /app/apps/agor-daemon
-  node dist/index.js --init || echo "⚠️  Init skipped (daemon will auto-create)"
+  su-exec agor node dist/index.js --init || echo "⚠️  Init skipped (daemon will auto-create)"
 fi
 
-# Start daemon
+# Start daemon as agor user
 echo "✅ Starting daemon on port ${PORT:-3030}..."
 cd /app/apps/agor-daemon
-exec node dist/index.js
+exec su-exec agor node dist/index.js
 EOF
 
 RUN chmod +x /usr/local/bin/docker-entrypoint-prod.sh
-
-# Switch to non-root user
-USER agor
 
 # Expose daemon port (Railway will set PORT env var)
 EXPOSE 3030
