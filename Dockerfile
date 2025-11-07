@@ -57,6 +57,16 @@ RUN apt-get update && apt-get install -y \
   ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
+# Install pnpm globally first (needed for AI CLI installations)
+RUN npm install -g pnpm@9.15.1
+
+# Install AI coding agent CLIs globally
+# These are required for Agor to run AI coding sessions
+RUN npm install -g \
+  @anthropic-ai/claude-code@latest \
+  @openai/codex@latest \
+  @google/gemini-cli@latest
+
 # Install GitHub CLI (gh) for git operations
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
   && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -64,9 +74,6 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
   && apt-get update \
   && apt-get install -y gh \
   && rm -rf /var/lib/apt/lists/*
-
-# Install pnpm
-RUN npm install -g pnpm@9.15.1
 
 # Create non-root user for security
 RUN useradd -m -u 1001 agor
