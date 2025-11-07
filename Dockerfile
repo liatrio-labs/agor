@@ -129,8 +129,10 @@ USER agor
 # Expose daemon port (Railway will set PORT env var)
 EXPOSE 3030
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# Health check (for Docker, Railway uses railway.toml settings)
+# Start period allows 60s for daemon to initialize database and start
+# Note: Railway ignores this and uses its own health check configuration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:${PORT:-3030}/health || exit 1
 
 # Set environment
