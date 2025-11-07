@@ -82,7 +82,8 @@ COPY --chown=agor:agor apps/agor-daemon/package.json ./apps/agor-daemon/
 COPY --chown=agor:agor apps/agor-ui/package.json ./apps/agor-ui/
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+# Skip prepare scripts (husky) with --ignore-scripts, then run specific postinstall scripts we need
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # Copy built artifacts from builder
 COPY --from=builder --chown=agor:agor /app/packages/core/dist ./packages/core/dist

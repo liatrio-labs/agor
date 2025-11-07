@@ -20,6 +20,10 @@ healthcheckTimeout = 300
 # Daemon will bind to Railway's PORT (usually 3030 or dynamic)
 NODE_ENV = "production"
 
+# SECURITY: Railway automatically sets RAILWAY_ENVIRONMENT
+# This triggers secure mode (anonymous auth disabled)
+# The daemon will REFUSE to start if allowAnonymous=true on Railway
+
 # CORS - allow Railway domains
 # Set these in Railway dashboard as needed
 # CORS_ORIGIN = "https://your-ui-domain.railway.app"

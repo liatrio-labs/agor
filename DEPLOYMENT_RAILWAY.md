@@ -44,8 +44,13 @@ In Railway dashboard, add these variables:
 **Required:**
 ```bash
 NODE_ENV=production
-PORT=3030  # Railway may override this
+# PORT is auto-set by Railway, no need to configure
 ```
+
+**Security Note:** 
+- Railway automatically sets `RAILWAY_ENVIRONMENT` which triggers secure mode
+- Anonymous authentication is **automatically disabled** on Railway
+- Daemon will refuse to start if someone tries to enable anonymous auth
 
 **Optional (but recommended for functionality):**
 ```bash
