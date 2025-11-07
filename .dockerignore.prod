@@ -1,0 +1,92 @@
+# Production .dockerignore
+# More aggressive than dev - exclude everything not needed for build
+
+# Dependencies (will be installed fresh in container)
+node_modules
+**/node_modules
+
+# Build outputs (will be rebuilt in container)
+dist
+**/dist
+build
+**/build
+.turbo
+.next
+
+# Development files
+.git
+.github
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Environment files (set via Railway dashboard)
+.env
+.env.*
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage
+.nyc_output
+test
+**/test
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+__tests__
+**/__tests__
+
+# Documentation
+docs
+**/docs
+*.md
+context
+CONTRIBUTING.md
+LICENSE
+README.md
+FAQ.md
+TEST_PLAN.md
+AGENTS.md
+
+# Docker files
+Dockerfile.dev
+docker-compose*.yml
+docker-entrypoint.sh
+
+# Storybook
+storybook-static
+.storybook
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local Agor data
+.agor
+**/.agor
+.claude
+**/.claude
+
+# CLI app (not needed for daemon deployment)
+apps/agor-cli
+
+# Docs app (not needed for daemon deployment)
+apps/agor-docs
+
+# Scripts
+scripts
+
+# Package distribution
+packages/agor-live
+
