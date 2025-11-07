@@ -1,0 +1,49 @@
+{
+  "name": "Agor",
+  "description": "Multiplayer canvas for orchestrating AI coding agents",
+  "repository": "https://github.com/preset-io/agor",
+  "logo": "https://agor.live/logo.png",
+  "keywords": ["ai", "agents", "orchestration", "claude", "codex", "gemini"],
+  "stack": "container",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    }
+  ],
+  "buildpacks": [],
+  "env": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production",
+      "required": true
+    },
+    "ANTHROPIC_API_KEY": {
+      "description": "Anthropic API key for Claude Code",
+      "required": false
+    },
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for Codex",
+      "required": false
+    },
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key",
+      "required": false
+    },
+    "CORS_ORIGIN": {
+      "description": "Allowed CORS origins (comma-separated or *)",
+      "value": "*",
+      "required": false
+    }
+  },
+  "scripts": {
+    "postdeploy": "echo 'Agor deployed successfully!'"
+  }
+}
+

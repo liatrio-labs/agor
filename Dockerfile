@@ -108,6 +108,19 @@ set -e
 
 echo "🚀 Starting Agor production server..."
 
+# SECURITY: Ensure secure configuration for public deployments
+# Always create/overwrite config.yaml to enforce security settings
+echo "🔒 Ensuring secure configuration..."
+mkdir -p /home/agor/.agor
+cat > /home/agor/.agor/config.yaml <<YAML
+daemon:
+  port: ${PORT:-3030}
+  allowAnonymous: false
+  requireAuth: true
+YAML
+
+echo "✅ Security configuration set (anonymous auth disabled)"
+
 # Initialize database if needed
 if [ ! -f "/home/agor/.agor/agor.db" ]; then
   echo "📦 Initializing database..."
