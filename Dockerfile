@@ -55,7 +55,7 @@ RUN apt-get update && apt-get install -y \
   git \
   curl \
   ca-certificates \
-  su-exec \
+  gosu \
   && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm globally first (needed for AI CLI installations)
@@ -141,13 +141,13 @@ echo "✅ Security configuration set (anonymous auth disabled)"
 if [ ! -f "/home/agor/.agor/agor.db" ]; then
   echo "📦 Initializing database..."
   cd /app/apps/agor-daemon
-  su-exec agor node dist/index.js --init || echo "⚠️  Init skipped (daemon will auto-create)"
+  gosu agor node dist/index.js --init || echo "⚠️  Init skipped (daemon will auto-create)"
 fi
 
 # Start daemon as agor user
 echo "✅ Starting daemon on port ${PORT:-3030}..."
 cd /app/apps/agor-daemon
-exec su-exec agor node dist/index.js
+exec gosu agor node dist/index.js
 EOF
 
 RUN chmod +x /usr/local/bin/docker-entrypoint-prod.sh
