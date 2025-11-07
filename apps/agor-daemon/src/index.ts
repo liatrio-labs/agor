@@ -819,24 +819,28 @@ async function main() {
         },
       ],
       create: [
-        // Authenticate the request first (unless it's the first user being created)
+        // Conditional authentication: require auth only if users already exist
         async context => {
           const params = context.params as AuthenticatedParams;
 
+          // Skip for internal calls
           if (!params.provider) {
             return context;
           }
 
           // Check if any users exist
           const existing = (await usersService.find({ query: { $limit: 1 } })) as Paginated<User>;
+          
           if (existing.total > 0) {
-            // Users exist - require authentication
-            // Authenticate and populate params.user
-            await requireAuth(context);
-            // Now verify admin role
-            ensureMinimumRole(params, 'admin', 'create users');
+            // Users exist - require authentication + admin role
+            // Call requireAuth to populate params.user from JWT
+            const authenticatedContext = await requireAuth(context);
+            // Verify admin role
+            ensureMinimumRole(authenticatedContext.params as AuthenticatedParams, 'admin', 'create users');
+            return authenticatedContext;
           }
-
+          
+          // No users exist - allow unauthenticated creation (bootstrap)
           return context;
         },
       ],
