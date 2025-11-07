@@ -28,16 +28,23 @@ export function getDaemonUrl(): string {
   if (envUrl) return envUrl;
 
   // 2. Same-host assumption: daemon runs on same host as UI
-  // Use VITE_DAEMON_PORT if available, otherwise use default from constants
-  const daemonPort = import.meta.env.VITE_DAEMON_PORT || String(DAEMON.DEFAULT_PORT);
-
   if (typeof window !== 'undefined') {
     const origin = window.location.origin;
     const url = new URL(origin);
+    
+    // Production deployment (UI served from /ui/ path by daemon)
+    // In this case, daemon is at same origin without port
+    if (window.location.pathname.startsWith('/ui')) {
+      return origin; // Same origin, no port needed (Railway, Heroku, etc.)
+    }
+    
+    // Development: UI and daemon on different ports
+    const daemonPort = import.meta.env.VITE_DAEMON_PORT || String(DAEMON.DEFAULT_PORT);
     return `${url.protocol}//${url.hostname}:${daemonPort}`;
   }
 
   // 3. Server-side fallback
+  const daemonPort = import.meta.env.VITE_DAEMON_PORT || String(DAEMON.DEFAULT_PORT);
   return `http://${DAEMON.DEFAULT_HOST}:${daemonPort}`;
 }
 

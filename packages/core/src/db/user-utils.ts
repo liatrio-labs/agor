@@ -39,8 +39,9 @@ export async function createUser(db: Database, data: CreateUserData): Promise<Us
     throw new Error(`User with email ${data.email} already exists`);
   }
 
-  // Hash password (12 rounds for security)
-  const hashedPassword = await bcrypt.hash(data.password, 12);
+  // Hash password (10 rounds for Railway compatibility - faster but still secure)
+  // Note: 10 rounds is still very secure (recommended by OWASP)
+  const hashedPassword = await bcrypt.hash(data.password, 10);
 
   // Create user
   const now = new Date();
