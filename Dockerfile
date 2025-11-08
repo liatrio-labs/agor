@@ -109,6 +109,13 @@ COPY --from=builder --chown=agor:agor /app/apps/agor-daemon/package.json ./apps/
 # Create .agor directory with proper permissions
 RUN mkdir -p /home/agor/.agor && chown -R agor:agor /home/agor/.agor
 
+# Create agent data directories in persistent volume
+# These will be symlinked from home directory to ensure persistence
+RUN mkdir -p /home/agor/.agor/.claude \
+             /home/agor/.agor/.codex \
+             /home/agor/.agor/.gemini && \
+    chown -R agor:agor /home/agor/.agor
+
 # Create production entrypoint script
 # Note: This runs as root to fix volume permissions, then switches to agor user
 COPY <<'EOF' /usr/local/bin/docker-entrypoint-prod.sh
@@ -123,6 +130,34 @@ echo "🔧 Fixing volume permissions..."
 mkdir -p /home/agor/.agor
 chown -R agor:agor /home/agor/.agor
 echo "✅ Volume permissions fixed"
+
+# Create agent session directories in persistent volume
+# This ensures agent conversations survive container restarts/deploys
+echo "📁 Setting up agent session storage..."
+mkdir -p /home/agor/.agor/.claude \
+         /home/agor/.agor/.codex \
+         /home/agor/.agor/.gemini
+chown -R agor:agor /home/agor/.agor
+
+# Create symlinks from home directory to persistent volume
+# This ensures CLIs store data in the persistent volume
+if [ ! -L /home/agor/.claude ]; then
+  rm -rf /home/agor/.claude
+  ln -s /home/agor/.agor/.claude /home/agor/.claude
+fi
+
+if [ ! -L /home/agor/.codex ]; then
+  rm -rf /home/agor/.codex
+  ln -s /home/agor/.agor/.codex /home/agor/.codex
+fi
+
+if [ ! -L /home/agor/.gemini ]; then
+  rm -rf /home/agor/.gemini
+  ln -s /home/agor/.agor/.gemini /home/agor/.gemini
+fi
+
+chown -h agor:agor /home/agor/.claude /home/agor/.codex /home/agor/.gemini
+echo "✅ Agent session directories configured (symlinked to persistent volume)"
 
 # SECURITY: Ensure secure configuration for public deployments
 # Always create/overwrite config.yaml to enforce security settings

@@ -232,14 +232,50 @@ ENV NODE_OPTIONS="--max-old-space-size=512"
 ## Production Checklist
 
 - [ ] Persistent volume configured at `/home/agor/.agor`
+- [ ] Agent session storage configured (symlinked to persistent volume)
 - [ ] API keys set in Railway environment variables
 - [ ] CORS configured for UI domain
 - [ ] Custom domain configured (optional)
 - [ ] Health check passing
 - [ ] Logs show no errors
 - [ ] Database persists across deploys
+- [ ] Agent conversations persist across deploys (Claude Code, Codex, Gemini)
 - [ ] Git authentication working (for repo management)
 - [ ] WebSocket connections working (test in UI)
+
+---
+
+## Agent Session Persistence
+
+**Problem:** Agent conversations (Claude Code, Codex, Gemini CLI) are lost after container restarts.
+
+**Solution:** The Dockerfile automatically configures persistent storage for all agents:
+
+```bash
+# Agent data locations (automatically symlinked to persistent volume)
+~/.claude  -> /home/agor/.agor/.claude   # Claude Code sessions
+~/.codex   -> /home/agor/.agor/.codex    # Codex sessions
+~/.gemini  -> /home/agor/.agor/.gemini   # Gemini CLI sessions
+```
+
+**What's persisted:**
+- Claude Code conversation history and resume state
+- Codex thread state and file tracking
+- Gemini chat sessions and context
+
+**How it works:**
+1. Railway volume mounted at `/home/agor/.agor`
+2. Agent directories created within the volume
+3. Symlinks redirect standard CLI locations to persistent storage
+4. Container restarts/redeploys preserve agent state
+
+**Verify persistence:**
+```bash
+# Check symlinks in Railway container
+railway run bash
+ls -la ~/ | grep -E '\.(claude|codex|gemini)'
+# Should show symlinks pointing to /home/agor/.agor/*
+```
 
 ---
 
